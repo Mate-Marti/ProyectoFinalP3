@@ -67,4 +67,60 @@ defmodule Usuario do
   defp actualizar_estado_conexion([usuario | resto], username, estado) do
     [usuario | actualizar_estado_conexion(resto, username, estado)]
   end
+
+  # registrar la actividad realizada por cada usuario
+
+  #funcion cuando el usuario esta desconectado no puede ejecutar ninguna operacion
+  def puede_ejecutar?(%Usuario{conectado: false}, _operacion), do: false
+
+  #funcion cuando el usuario es administrador puede ejecutar cualquier operacion
+  def puede_ejecutar?(%Usuario{rol: :administrador}, operacion), do: true
+
+  #funcion cuando el usuario es coordinador puede ejecutar ciertas operaciones
+  def puede_ejecutar?(%Usuario{rol: :coordinador}, operacion)
+    when operacion in [
+      :registrar_zona,
+      :registrar_necesidad,
+      :asignar_recursos,
+      :registrar_recursos,
+      :transferir_recursos,
+      :reportar_persona,
+      :enviar_mensaje,
+      :reportar_mascota,
+      :emparejaar_mascota,
+      :registrar_albergue,
+      :ingreso_albergue,
+      :salida_albergue,
+      :consultar
+    ],
+    do: true
+
+  #funcion cuando el usuario es voluntario puede ejecutar ciertas operaciones
+  def puede_ejecutar?(%Usuario{rol: :voluntario}, operacion)
+    when operacion in [
+      :registrar_necesidad,
+      :reportar_persona,
+      :enviar_mensaje,
+      :reportar_mascota,
+      :emparejaar_mascota,
+      :ingreso_albergue,
+      :salida_albergue,
+      :consultar
+    ],
+    do: true
+
+  #funcion cuando el usuario es ciudadano puede ejecutar ciertas operaciones
+  def puede_ejecutar?(%Usuario{rol: :ciudadano}, operacion)
+    when operacion in [
+      :reportar_necesidad,
+      :reportar_persona,
+      :enviar_mensaje,
+      :reportar_mascota,
+      :consultar
+    ],
+    do: true
+
+  #funcion cuando el usuario no tiene rol definido no puede ejecutar ninguna operacion
+  def puede_ejecutar?(_usuario, _operacion), do: false
+
 end
