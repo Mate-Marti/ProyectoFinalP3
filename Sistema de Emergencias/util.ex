@@ -14,11 +14,6 @@ defmodule Util do
   def mostrar_error(mensaje) do
     IO.puts(:standard_error, mensaje)
   end
-
-  def mostrar_mensaje_java(mensaje) do
-    System.cmd("java", ["-cp", ".", "Mensaje", mensaje])
-  end
-
   def ingresar(mensaje, :texto) do
     mensaje
     |> IO.gets()
@@ -60,9 +55,5 @@ defmodule Util do
     end
   end
 
-  def formater(valor) do
-    valor
-    |> Kernel.*(1.0)
-    |> :erlang.float_to_binary(valor, decimals: 2)
-  end
+  def formater(valor), do: :erlang.float_to_binary(valor * 1.0, decimals: 2)
 end
