@@ -75,6 +75,20 @@ defmodule Necesidad do
     Enum.sort_by(necesidades, &@peso_prioridad[&1.prioridad], :desc)
   end
 
+  def filtrar_necesidades([], _zona, _tipo, _prioridad, _estado), do: []
+  def filtrar_necesidades([n | resto], zona, tipo, prioridad, estado) do
+    c_zona = zona == nil or n.zona == zona
+    c_tipo = tipo == nil or n.tipo == tipo
+    c_prio = prioridad == nil or n.prioridad == prioridad
+    c_est = estado == nil or n.estado == estado
+
+    if c_zona and c_tipo and c_prio and c_est do
+      [n | filtrar_necesidades(resto, zona, tipo, prioridad, estado)]
+    else
+      filtrar_necesidades(resto, zona, tipo, prioridad, estado)
+    end
+  end
+
   def tipos, do: @tipos
   def prioridades, do: @prioridades
   def estados, do: @estados

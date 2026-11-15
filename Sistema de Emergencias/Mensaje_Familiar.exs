@@ -32,4 +32,11 @@ defmodule MensajeFamiliar do
   end
 
   def estados, do: @estados
+
+  def listar_mensajes([], _destinatario), do: []
+  def listar_mensajes([m | resto], destinatario) when m.destinatario == destinatario do
+    [m | listar_mensajes(resto, destinatario)]
+  end
+  def listar_mensajes([_m | resto], destinatario), do: listar_mensajes(resto, destinatario)
+  
 end

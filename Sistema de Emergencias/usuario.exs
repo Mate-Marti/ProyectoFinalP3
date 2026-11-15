@@ -1,6 +1,6 @@
 defmodule Usuario do
 
-  defstruct [:username, :password, :nombre_completo, :rol, :zona_principal, conectado: false]
+  defstruct [:username, :password, :nombre_completo, :rol, :zona_principal, conectado: false, historial_actividad: []]
 
   def crear_usuario(username, password, nombre_completo, rol, zona) when rol in [:ciudadano, :voluntario, :coordinador, :administrador] do
     %Usuario{
@@ -9,7 +9,8 @@ defmodule Usuario do
       nombre_completo: nombre_completo,
       rol: rol,
       zona_principal: zona,
-      conectado: false
+      conectado: false,
+      historial_actividad: []
     }
   end
 
@@ -122,5 +123,10 @@ defmodule Usuario do
 
   #funcion cuando el usuario no tiene rol definido no puede ejecutar ninguna operacion
   def puede_ejecutar?(_usuario, _operacion), do: false
+
+  def registrar_actividad(%Usuario{} = usuario, actividad) do
+    registro = {actividad, DateTime.utc_now()}
+    %Usuario{usuario | historial_actividad: [registro | usuario.historial_actividad]}
+  end
 
 end

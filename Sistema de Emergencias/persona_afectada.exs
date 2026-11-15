@@ -29,6 +29,7 @@ defmodule PersonaAfectada do
   # Guarda en el historial cada cambio: {estado_anterior, estado_nuevo, fecha}
   def cambiar_estado(%PersonaAfectada{estado: igual}, igual),
     do: {:error, "la persona ya está en estado #{igual}"}
+
 #el datatime.utc_now() devuelve la fecha y hora actual en formato UTC
   def cambiar_estado(%PersonaAfectada{} = p, nuevo) when nuevo in @estados do
     registro = {p.estado, nuevo, DateTime.utc_now()}
@@ -38,4 +39,13 @@ defmodule PersonaAfectada do
   def cambiar_estado(_p, nuevo), do: {:error, "estado inválido: #{inspect(nuevo)}"}
 
   def estados, do: @estados
+
+  def buscar_personas([], _criterio), do: []
+  def buscar_personas([p | resto], criterio) do
+    if p.documento == criterio or p.nombre == criterio or p.zona == criterio or p.estado == criterio do
+      [p | buscar_personas(resto, criterio)]
+    else
+      buscar_personas(resto, criterio)
+    end
+  end
 end

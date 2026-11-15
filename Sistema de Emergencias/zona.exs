@@ -2,14 +2,19 @@ defmodule Zona do
 
   defstruct [:codigo, :nombre, :nivel_afectacion, personas_afectadas: 0, sectores: [], albergues: [], necesidades: [], recursos: [], reportes: []]
 
-  def crear_zona(codigo, nombre, nivel, personas \\ 0) when nivel in [:critico, :alto, :medio, :bajo] do
-    %Zona{
+  def crear_zona(codigo, nombre, nivel, personas \\ 0)
+      when nivel in [:critico, :alto, :medio, :bajo] and is_integer(personas) and personas >= 0 do
+    {:ok,
+      %Zona{
       codigo: codigo,
       nombre: nombre,
       nivel_afectacion: nivel,
       personas_afectadas: personas
-    }
+    }}
   end
+
+  def crear_zona(_codigo, _nombre, _nivel, _personas),
+    do: {:error, "nivel de afectación o cantidad de personas invalidos"}
 
   #registrar un sector en la zona
   def agregar_sector(%Zona{} = zona, codigo_sector, nombre_sector, personas \\ 0) do
@@ -23,16 +28,6 @@ defmodule Zona do
     %{zona | sectores: [nuevo_sector | zona.sectores]}
   end
 
-  def agregar_sector(%Zona{} = zona, codigo_sector, nombre_sector, personas \\ 0) do
-    nuevo_sector = %{
-      codigo: codigo_sector,
-      nombre: nombre_sector,
-      personas_afectadas: personas,
-      puntos_atencion: []
-    }
-
-    %{zona | sectores: [nuevo_sector | zona.sectores]}
-  end
 
   #Registrar un punto de atención dentro de un sector (estructura: zona -> sectores -> puntos_atencion)
   def agregar_punto_atencion(%Zona{} = zona, codigo_sector, punto_atencion) do
