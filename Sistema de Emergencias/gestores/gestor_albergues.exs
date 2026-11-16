@@ -44,6 +44,7 @@ defmodule GestorAlbergues do
   def handle_call({:registrar_albergue, username, cod, nom, zona, cap}, _from, albergues) do
     with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_albergue, "registrar_albergue #{cod}"),
          false <- existe_codigo?(albergues, cod),
+         true <- GestorZonas.existe_zona?(zona),
          {:ok, albergue} <- Albergue.crear_albergue(cod, nom, zona, cap) do
       GestorZonas.asociar_elemento(zona, :albergues, cod)
       nuevos_albergues = [albergue | albergues]
@@ -51,6 +52,7 @@ defmodule GestorAlbergues do
       {:reply, {:ok, albergue}, nuevos_albergues}
     else
       true -> {:reply, {:error, "el albergue #{cod} ya existe"}, albergues}
+      false -> {:reply, {:error, "La zona '#{zona}' no existe. Regístrela primero"}, albergues}
       error -> {:reply, error, albergues}
     end
   end
@@ -73,7 +75,9 @@ defmodule GestorAlbergues do
 
   @impl true
   def handle_call({:ingreso_albergue, username, cod, doc}, _from, albergues) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :ingreso_albergue, "ingreso_albergue #{cod} doc #{doc}"),
+    with {:ok, _usuario} <-
+     GestorUsuarios.validar_y_registrar(username, 
+     :ingreso_albergue, "ingreso_albergue #{cod} doc #{doc}"),
          {:ok, albergue} <- buscar_por_codigo(albergues, cod),
          {:ok, alb_act} <- Albergue.registrar_ingreso(albergue, doc) do
       nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)
@@ -86,7 +90,9 @@ defmodule GestorAlbergues do
 
   @impl true
   def handle_call({:salida_albergue, username, cod, doc}, _from, albergues) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :salida_albergue, "salida_albergue #{cod} doc #{doc}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, 
+    :salida_albergue, "salida_albergue #{cod} doc #{doc}"),
          {:ok, albergue} <- buscar_por_codigo(albergues, cod),
          {:ok, alb_act} <- Albergue.registrar_salida(albergue, doc) do
       nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)
@@ -104,7 +110,9 @@ defmodule GestorAlbergues do
 
   @impl true
   def handle_call({:asociar_recurso, username, cod_alb, cod_rec}, _from, albergues) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_albergue, "asociar_recurso #{cod_rec} -> #{cod_alb}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username,
+     :registrar_albergue, "asociar_recurso #{cod_rec} -> #{cod_alb}"),
          {:ok, albergue} <- buscar_por_codigo(albergues, cod_alb),
          {:ok, alb_act} <- Albergue.asociar_recurso(albergue, cod_rec) do
       nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)
@@ -118,7 +126,9 @@ defmodule GestorAlbergues do
 
 @impl true
 def handle_call({:asociar_necesidad, username, cod_alb, id_nec}, _from, albergues) do
-  with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_albergue, "asociar_necesidad #{id_nec} -> #{cod_alb}"),
+  with {:ok, _usuario} <- 
+  GestorUsuarios.validar_y_registrar(username,
+   :registrar_albergue, "asociar_necesidad #{id_nec} -> #{cod_alb}"),
        {:ok, albergue} <- buscar_por_codigo(albergues, cod_alb),
        {:ok, alb_act} <- Albergue.asociar_necesidad(albergue, id_nec) do
     nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)

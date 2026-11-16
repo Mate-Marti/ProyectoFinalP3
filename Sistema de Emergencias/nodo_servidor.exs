@@ -20,16 +20,37 @@ Code.require_file("supervisor_emergencia.exs", __DIR__)
 
 defmodule NodoServidor do
   def main() do
-    {:ok, pid} = SupervisorEmergencia.start_link()
-    Util.mostrar_mensaje("SupervisorEmergencia iniciado en #{inspect(pid)}")
-    Util.mostrar_mensaje("8 GenServers activos bajo estrategia :one_for_one")
-    Util.mostrar_mensaje("Nodo servidor #{Node.self()} listo y esperando clientes...")
-    mantener_vivo()
+    # 1. Validamos que el nodo haya sido iniciado con --sname o --name
+    if Node.self() == :nonode@nohost do
+      Util.mostrar_error(
+        "El nodo no está en modo distribuido (:nonode@nohost).\n" <>
+          "Inícialo con: elixir --sname servidor --cookie emergencia nodo_servidor.exs"
+      )
+    else
+      # 2. Registramos este proceso para poder enviarle :detener si es necesario
+      Process.register(self(), __MODULE__)
+
+      case SupervisorEmergencia.start_link() do
+        {:ok, pid} ->
+          Util.mostrar_mensaje("==========================================")
+          Util.mostrar_mensaje("SupervisorEmergencia iniciado en #{inspect(pid)}")
+          Util.mostrar_mensaje("8 GenServers activos bajo estrategia :one_for_one")
+          Util.mostrar_mensaje("Nodo servidor #{Node.self()} listo y esperando clientes...")
+          Util.mostrar_mensaje("==========================================")
+          mantener_vivo(pid)
+
+        {:error, razon} ->
+          Util.mostrar_error("No se pudo iniciar el Supervisor: #{inspect(razon)}")
+      end
+    end
   end
 
-  defp mantener_vivo() do
+  defp mantener_vivo(pid_supervisor) do
     receive do
-      :detener -> :ok
+      :detener ->
+        Util.mostrar_mensaje("Deteniendo SupervisorEmergencia y cerrando servidor...")
+        Supervisor.stop(pid_supervisor, :normal)
+        :ok
     end
   end
 end

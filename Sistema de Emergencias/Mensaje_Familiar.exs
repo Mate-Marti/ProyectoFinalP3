@@ -6,20 +6,34 @@ defmodule MensajeFamiliar do
   @estados [:pendiente, :entregado]
 #datatime.utc_now() devuelve la fecha y hora actual en formato UTC del sistema
   def crear_mensaje(id, remitente, destinatario, contenido) do
-    if String.trim(to_string(contenido)) == "" do
-      {:error, "el mensaje no puede estar vacío"}
-    else
-      {:ok,
-       %MensajeFamiliar{
-         id: id,
-         fecha: DateTime.utc_now(),
-         remitente: remitente,
-         destinatario: destinatario,
-         contenido: contenido
-       }}
+    cond do
+      not texto_valido?(id) ->
+        {:error, "El ID del mensaje no puede estar vacío"}
+
+      not texto_valido?(remitente) ->
+        {:error, "El remitente no puede estar vacío"}
+
+      not texto_valido?(destinatario) ->
+        {:error, "El destinatario no puede estar vacío"}
+
+      not texto_valido?(contenido) ->
+        {:error, "El contenido del mensaje no puede estar vacío"}
+
+      true ->
+        {:ok,
+         %MensajeFamiliar{
+           id: String.trim(id),
+           fecha: DateTime.utc_now(),
+           remitente: String.trim(remitente),
+           destinatario: String.trim(destinatario),
+           contenido: String.trim(contenido)
+         }}
     end
   end
 
+  defp texto_valido?(val), do: is_binary(val) and String.trim(val) != ""
+
+  
   def marcar_entregado(%MensajeFamiliar{estado: :entregado}),
     do: {:error, "el mensaje ya estaba entregado"}
 

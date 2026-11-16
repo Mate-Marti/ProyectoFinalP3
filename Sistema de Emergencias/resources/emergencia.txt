@@ -1,1 +1,7 @@
-USUARIO@mateo@123@mateo@administrador@1
+USUARIO@laura@1234@Laura@coordinador@Z01
+ZONA@centro@Zona Centro@alto@100@
+ZONA@Z01@Zona Centro@critico@200@S01|Sector Parque|80|Hospital Móvil,Carpa Cruz Roja
+RECURSO@R001_destino_fantasma@Agua potable@agua@5@litros@destino_fantasma
+RECURSO@R003@Arroz@alimentos@50@kg@bodega_inexistente
+RECURSO@R001@Agua potable@agua@15@litros@centro_acopio_1
+NECESIDAD@N001@agua@Punto de atencion sector 3@30@30@centro@critica@laura@cancelada

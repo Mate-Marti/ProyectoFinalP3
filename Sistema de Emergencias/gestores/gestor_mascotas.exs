@@ -30,8 +30,10 @@ defmodule GestorMascotas do
 
   @impl true
   def handle_call({:reportar_mascota, username, id, tipo, esp, nom, car, col, tam, zona, cont}, _from, mascotas) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :reportar_mascota, "reportar_mascota #{id}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :reportar_mascota, "reportar_mascota #{id}"),
          false <- existe_id?(mascotas, id),
+         true <- GestorZonas.existe_zona?(zona),
          {:ok, reporte} <- ReporteMascota.crear_reporte(id, tipo, esp, nom, car, col, tam, zona, cont) do
       GestorZonas.asociar_elemento(zona, :reportes, id)
       nuevas_mascotas = [reporte | mascotas]
@@ -39,6 +41,7 @@ defmodule GestorMascotas do
       {:reply, {:ok, reporte}, nuevas_mascotas}
     else
       true -> {:reply, {:error, "el id de mascota #{id} ya existe"}, mascotas}
+      false -> {:reply, {:error, "La zona '#{zona}' no existe. Regístrela primero"}, mascotas}
       error -> {:reply, error, mascotas}
     end
   end
@@ -55,7 +58,8 @@ defmodule GestorMascotas do
 
   @impl true
   def handle_call({:confirmar_coincidencia, username, id_perdida, id_encontrada}, _from, mascotas) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :emparejar_mascota, "confirmar_mascota #{id_perdida} y #{id_encontrada}"),
+    with {:ok, _usuario} <-
+     GestorUsuarios.validar_y_registrar(username, :emparejar_mascota, "confirmar_mascota #{id_perdida} y #{id_encontrada}"),
          {:ok, rep_p} <- buscar_por_id(mascotas, id_perdida),
          {:ok, rep_e} <- buscar_por_id(mascotas, id_encontrada),
          {:ok, p_cerrado, e_cerrado} <- ReporteMascota.confirmar_coincidencia(rep_p, rep_e) do

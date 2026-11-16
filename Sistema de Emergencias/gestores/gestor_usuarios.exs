@@ -33,7 +33,7 @@ def handle_call({:conectar, username, password, nombre_completo, rol, zona}, _fr
   case Usuario.connect(username, password, nombre_completo, rol, zona, usuarios) do
     {:ok, nuevos_usuarios} ->
       GestorPersistencia.actualizar_lista(:usuarios, nuevos_usuarios)
-      {:reply, {:ok, Usuario.buscar_usuario(nuevos_usuarios, username)}, nuevos_usuarios}
+      {:reply, {:ok, Usuario.buscar_usuario(nuevos_usuarios, String.trim(username))}, nuevos_usuarios}
 
     {:error, motivo} ->
       {:reply, {:error, motivo}, usuarios}
@@ -42,10 +42,15 @@ end
 
   @impl true
   def handle_call({:desconectar, username}, _from, usuarios) do
-    nuevos_usuarios = Usuario.disconnect(username, usuarios)
-    GestorPersistencia.actualizar_lista(:usuarios, nuevos_usuarios)
-    {:reply, :ok, nuevos_usuarios}
+  case Usuario.disconnect(username, usuarios) do
+    {:ok, nuevos_usuarios} ->
+      GestorPersistencia.actualizar_lista(:usuarios, nuevos_usuarios)
+      {:reply, {:ok, "Usuario '#{username}' desconectado correctamente"}, nuevos_usuarios}
+
+    {:error, motivo} ->
+      {:reply, {:error, motivo}, usuarios}
   end
+end
 
   @impl true
   def handle_call({:actividad_usuario, username}, _from, usuarios) do

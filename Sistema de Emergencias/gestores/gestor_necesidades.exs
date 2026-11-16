@@ -32,6 +32,7 @@ defmodule GestorNecesidades do
   def handle_call({:registrar_necesidad, username, id, tipo, desc, cant, zona, prio}, _from, necesidades) do
     with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_necesidad, "registrar_necesidad #{id}"),
          false <- existe_id?(necesidades, id),
+         true <- GestorZonas.existe_zona?(zona),
          {:ok, necesidad} <- Necesidad.crear_necesidad(id, tipo, desc, cant, zona, prio, username) do
       GestorZonas.asociar_elemento(zona, :necesidades, id)
       nuevas_necesidades = [necesidad | necesidades]
@@ -39,6 +40,7 @@ defmodule GestorNecesidades do
       {:reply, {:ok, necesidad}, nuevas_necesidades}
     else
       true -> {:reply, {:error, "el id de necesidad #{id} ya existe"}, necesidades}
+      false -> {:reply, {:error, "La zona '#{zona}' no existe. Regístrela primero"}, necesidades}
       error -> {:reply, error, necesidades}
     end
   end
@@ -68,25 +70,19 @@ defmodule GestorNecesidades do
 
   @impl true
   def handle_call({:asignar_recurso, username, id_nec, cod_o_cat, cantidad}, _from, necesidades) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :asignar_recursos, "asignar_recurso #{cod_o_cat} -> #{id_nec}"),
+    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, 
+    :asignar_recursos,
+     "asignar_recurso #{cod_o_cat} -> #{id_nec}"),
          {:ok, necesidad} <- buscar_por_id(necesidades, id_nec),
-         true <- Necesidad.puede_recibir_recursos?(necesidad),
-         {:ok, recurso_act} <- GestorRecursos.reservar_recurso(cod_o_cat, cantidad),
-         {:ok, nec_act} <- avanzar_a_asignada(necesidad) do
+          {:ok, nec_act} <- Necesidad.registrar_asignacion(necesidad, cantidad),
+         {:ok, recurso_act} <- GestorRecursos.reservar_recurso(cod_o_cat, cantidad)do
       nuevas_necesidades = reemplazar_por_id(necesidades, nec_act)
       GestorPersistencia.actualizar_lista(:necesidades, nuevas_necesidades)
       {:reply, {:ok, %{recurso: recurso_act, necesidad: nec_act}}, nuevas_necesidades}
     else
-      false -> {:reply, {:error, "la necesidad #{id_nec} ya está atendida o cancelada"}, necesidades}
       error -> {:reply, error, necesidades}
     end
   end
-
-  defp avanzar_a_asignada(%Necesidad{estado: :pendiente} = nec),
-    do: Necesidad.cambiar_estado(nec, :asignada)
-
-  defp avanzar_a_asignada(%Necesidad{} = nec),
-    do: {:ok, nec}
 
   defp existe_id?([], _id), do: false
   defp existe_id?([h | _t], id) when h.id == id, do: true

@@ -2,23 +2,42 @@ defmodule Recurso do
   @moduledoc "Recurso de inventario con historial de movimientos."
 
   defstruct [:codigo, :nombre, :categoria, :cantidad, :unidad, :ubicacion, historial: []]
+def crear_recurso(codigo, nombre, categoria, cantidad, unidad, ubicacion) do
+    cond do
+      not texto_valido?(codigo) ->
+        {:error, "El código del recurso no puede estar vacío"}
 
-  def crear_recurso(codigo, nombre, categoria, cantidad, unidad, ubicacion)
-      when is_number(cantidad) and cantidad >= 0 do
-    {:ok,
-     %Recurso{
-       codigo: codigo,
-       nombre: nombre,
-       categoria: categoria,
-       cantidad: cantidad,
-       unidad: unidad,
-       ubicacion: ubicacion
-     }}
+      not texto_valido?(nombre) ->
+        {:error, "El nombre del recurso no puede estar vacío"}
+
+      not texto_valido?(categoria) and not is_atom(categoria) ->
+        {:error, "La categoría del recurso no puede estar vacía"}
+
+      not texto_valido?(unidad) ->
+        {:error, "La unidad de medida no puede estar vacía"}
+
+      not texto_valido?(ubicacion) ->
+        {:error, "La ubicación del recurso no puede estar vacía"}
+
+      not (is_number(cantidad) and cantidad >= 0) ->
+        {:error, "La cantidad no puede ser negativa"}
+
+      true ->
+        {:ok,
+         %Recurso{
+           codigo: String.trim(codigo),
+           nombre: String.trim(nombre),
+           categoria: categoria,
+           cantidad: cantidad,
+           unidad: String.trim(unidad),
+           ubicacion: String.trim(ubicacion)
+         }}
+    end
   end
 
-  def crear_recurso(_c, _n, _cat, _cantidad, _u, _ub),
-    do: {:error, "la cantidad no puede ser negativa"}
+  defp texto_valido?(val), do: is_binary(val) and String.trim(val) != ""
 
+  
   # Entrada de inventario
   def entrada(%Recurso{} = r, cantidad) when is_number(cantidad) and cantidad > 0 do
     {:ok, mover(r, :entrada, cantidad, r.cantidad + cantidad)}
@@ -37,10 +56,14 @@ defmodule Recurso do
 
   def salida(_r, _cantidad), do: {:error, "la cantidad debe ser mayor que 0"}
 
-  def transferir(%Recurso{} = origen, %Recurso{} = destino, cantidad) do
-    with {:ok, origen_act} <- salida(origen, cantidad),
-         {:ok, destino_act} <- entrada(destino, cantidad) do
-      {:ok, origen_act, destino_act}
+   def transferir(%Recurso{} = origen, %Recurso{} = destino, cantidad) do
+    if origen.ubicacion == destino.ubicacion do
+      {:error, "La ubicación de destino no puede ser igual a la de origen (#{origen.ubicacion})"}
+    else
+      with {:ok, origen_act} <- salida(origen, cantidad),
+           {:ok, destino_act} <- entrada(destino, cantidad) do
+        {:ok, origen_act, destino_act}
+      end
     end
   end
 

@@ -39,7 +39,8 @@ defmodule GestorRecursos do
 
   @impl true
   def handle_call({:registrar_recurso, username, cod, nom, cat, cant, uni, ubi}, _from, recursos) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_recursos, "registrar_recurso #{cod}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :registrar_recursos, "registrar_recurso #{cod}"),
          false <- existe_codigo?(recursos, cod),
          {:ok, recurso} <- Recurso.crear_recurso(cod, nom, cat, cant, uni, ubi) do
       GestorZonas.asociar_elemento(ubi, :recursos, cod)
@@ -54,7 +55,8 @@ defmodule GestorRecursos do
 
   @impl true
   def handle_call({:entrada_recurso, username, cod, cant}, _from, recursos) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_recursos, "entrada_recurso #{cod} +#{cant}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :registrar_recursos, "entrada_recurso #{cod} +#{cant}"),
          {:ok, recurso} <- buscar_por_codigo(recursos, cod),
          {:ok, rec_act} <- Recurso.entrada(recurso, cant) do
       nuevos_recursos = reemplazar_por_codigo(recursos, rec_act)
@@ -67,21 +69,29 @@ defmodule GestorRecursos do
 
   @impl true
   def handle_call({:reservar_recurso, cod_o_cat, cantidad}, _from, recursos) do
-    with {:ok, recurso} <- buscar_disponible(recursos, cod_o_cat, cantidad),
-         {:ok, recurso_act} <- Recurso.salida(recurso, cantidad) do
-      nuevos_recursos = reemplazar_por_codigo(recursos, recurso_act)
-      GestorPersistencia.actualizar_lista(:recursos, nuevos_recursos)
-      {:reply, {:ok, recurso_act}, nuevos_recursos}
+    if is_number(cantidad) and cantidad > 0 do
+      with {:ok, recurso} <- buscar_disponible(recursos, cod_o_cat, cantidad),
+           {:ok, recurso_act} <- Recurso.salida(recurso, cantidad) do
+        nuevos_recursos = reemplazar_por_codigo(recursos, recurso_act)
+        GestorPersistencia.actualizar_lista(:recursos, nuevos_recursos)
+        {:reply, {:ok, recurso_act}, nuevos_recursos}
+      else
+        error -> {:reply, error, recursos}
+      end
     else
-      error -> {:reply, error, recursos}
+      {:reply, {:error, "La cantidad a reservar debe ser mayor que 0"}, recursos}
     end
   end
 
   @impl true
-  def handle_call({:transferir_recurso, username, cod_origen, _ubi_origen, ubi_destino, cantidad}, _from, recursos) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :transferir_recursos, "transferir #{cod_origen} -> #{ubi_destino}"),
-         {:ok, origen} <- buscar_por_codigo(recursos, cod_origen) do
-      cod_dest = "#{cod_origen}_#{ubi_destino}"
+  def handle_call({:transferir_recurso, username, cod_origen, ubi_origen, ubi_destino, cantidad}, _from, recursos) do
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(
+      username, :transferir_recursos, "transferir #{cod_origen} -> #{ubi_destino}"),
+      :ok <- validar_ubicacion_destino(ubi_destino),
+         {:ok, origen} <- buscar_por_codigo(recursos, cod_origen),
+         :ok <- validar_ubicacion_origen(origen,ubi_origen) do
+      cod_dest = "#{cod_origen}_#{String.trim(ubi_destino)}"
 
       destino =
         case buscar_por_codigo(recursos, cod_dest) do
@@ -89,7 +99,8 @@ defmodule GestorRecursos do
             existente
 
           {:error, _} ->
-            {:ok, nuevo} = Recurso.crear_recurso(cod_dest, origen.nombre, origen.categoria, 0, origen.unidad, ubi_destino)
+            {:ok, nuevo} = 
+            Recurso.crear_recurso(cod_dest, origen.nombre, origen.categoria, 0, origen.unidad,String.trim(ubi_destino))
             nuevo
         end
 
@@ -117,6 +128,19 @@ defmodule GestorRecursos do
   def handle_call({:recursos_criticos, umbral}, _from, recursos) do
     {:reply, {:ok, Recurso.recursos_criticos(recursos, umbral)}, recursos}
   end
+
+
+  defp validar_ubicacion_origen(%Recurso{ubicacion: real}, ingresada) do
+    if real == ingresada do
+      :ok
+    else
+      {:error, "El recurso no se encuentra en '#{ingresada}' (ubicación actual: '#{real}')"}
+    end
+  end
+defp validar_ubicacion_destino(ubi) when is_binary(ubi) do
+  if String.trim(ubi) == "", do: {:error, "La ubicación de destino no puede estar vacía"}, else: :ok
+end
+ defp validar_ubicacion_destino(_), do: {:error, "La ubicación de destino debe ser texto"}
 
   defp existe_codigo?([], _cod), do: false
   defp existe_codigo?([h | _t], cod) when h.codigo == cod, do: true

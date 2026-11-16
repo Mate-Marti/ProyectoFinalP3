@@ -11,24 +11,51 @@ defmodule ReporteMascota do
   }
 
   def crear_reporte(id, tipo, especie, nombre, carac, color, tamano, zona, contacto) do
-    if tipo in @tipos do
-      {:ok,
-       %ReporteMascota{
-         id: id,
-         tipo_reporte: tipo,
-         especie: especie,
-         nombre: nombre,
-         caracteristicas: carac,
-         color: color,
-         tamano: tamano,
-         zona: zona,
-         contacto: contacto
-       }}
-    else
-      {:error, "tipo de reporte inválido. Opciones: #{inspect(@tipos)}"}
+    cond do
+      tipo not in @tipos ->
+        {:error, "Tipo de reporte inválido. Opciones: #{inspect(@tipos)}"}
+
+      not texto_valido?(id) ->
+        {:error, "El ID del reporte no puede estar vacío"}
+
+      not texto_valido?(especie) ->
+        {:error, "La especie no puede estar vacía"}
+
+      not texto_valido?(color) ->
+        {:error, "El color no puede estar vacío"}
+
+      not texto_valido?(tamano) ->
+        {:error, "El tamaño no puede estar vacío"}
+
+      not texto_valido?(zona) ->
+        {:error, "La zona no puede estar vacía"}
+
+      not texto_valido?(contacto) ->
+        {:error, "El contacto no puede estar vacío"}
+
+      true ->
+        nombre_limpio =
+          if texto_valido?(nombre), do: String.trim(nombre), else: "desconocido"
+
+        carac_limpias =
+          if texto_valido?(carac), do: String.trim(carac), else: "sin detalles"
+
+        {:ok,
+         %ReporteMascota{
+           id: String.trim(id),
+           tipo_reporte: tipo,
+           especie: String.downcase(String.trim(especie)),
+           nombre: nombre_limpio,
+           caracteristicas: carac_limpias,
+           color: String.downcase(String.trim(color)),
+           tamano: String.downcase(String.trim(tamano)),
+           zona: String.trim(zona),
+           contacto: String.trim(contacto)
+         }}
     end
   end
 
+  defp texto_valido?(val), do: is_binary(val) and String.trim(val) != ""
   # Un reporte resuelto no puede volver a cerrarse
   #map.fetch!(@transiciones, actual) devuelve la lista de estados a los que puede pasar desde el estado actual
   #el if verifica si el nuevo estado está en esa lista
@@ -58,15 +85,16 @@ defmodule ReporteMascota do
     end
   end
 
-  def buscar_coincidencias(reportes) do
-    perdidas = filtrar_reportes(reportes, nil, nil, :activa) |> separar_por_tipo(:perdida)
-    encontradas = filtrar_reportes(reportes, nil, nil, :activa) |> separar_por_tipo(:encontrada)
+ def buscar_coincidencias(reportes) do
+    no_resueltos = Enum.filter(reportes, &(&1.estado != :resuelta))
+    perdidas = separar_por_tipo(no_resueltos, :perdida)
+    encontradas = separar_por_tipo(no_resueltos, :encontrada)
     emparejar_listas(perdidas, encontradas, [])
   end
-
   defp separar_por_tipo([], _tipo), do: []
   defp separar_por_tipo([r | resto], tipo) when r.tipo_reporte == tipo,
     do: [r | separar_por_tipo(resto, tipo)]
+
   defp separar_por_tipo([_r | resto], tipo), do: separar_por_tipo(resto, tipo)
 
   defp emparejar_listas([], _encontradas, acc), do: acc
@@ -76,6 +104,7 @@ defmodule ReporteMascota do
   end
 
   defp evaluar_contra_encontradas(_p, [], acc), do: acc
+
   defp evaluar_contra_encontradas(p, [e | resto_e], acc) do
     puntaje = calcular_puntaje(p, e)
     nuevo_acc = if puntaje >= 50, do: [{p.id, e.id, puntaje} | acc], else: acc
@@ -90,14 +119,25 @@ defmodule ReporteMascota do
       puntos = if p.zona == e.zona, do: puntos + 25, else: puntos
       puntos = if p.color == e.color, do: puntos + 20, else: puntos
       puntos = if p.tamano == e.tamano, do: puntos + 15, else: puntos
-      if p.nombre != "desconocido" and p.nombre == e.nombre, do: puntos + 10, else: puntos
+     if String.downcase(p.nombre) != "desconocido" and
+           String.downcase(p.nombre) == String.downcase(e.nombre),
+         do: puntos + 10,
+         else: puntos
     end
   end
-
-  def confirmar_coincidencia(%ReporteMascota{} = perdida, %ReporteMascota{} = encontrada) do
+# CORREGIDO: Verifica explícitamente que uno sea :perdida y otro :encontrada
+  def confirmar_coincidencia(
+        %ReporteMascota{tipo_reporte: :perdida} = perdida,
+        %ReporteMascota{tipo_reporte: :encontrada} = encontrada
+      ) do
     with {:ok, p_cerrado} <- cambiar_estado(perdida, :resuelta),
          {:ok, e_cerrado} <- cambiar_estado(encontrada, :resuelta) do
       {:ok, p_cerrado, e_cerrado}
     end
+  end
+
+  def confirmar_coincidencia(%ReporteMascota{tipo_reporte: t1}, %ReporteMascota{tipo_reporte: t2}) do
+    {:error,
+     "Para confirmar coincidencia el primer reporte debe ser :perdida y el segundo :encontrada (recibido: #{t1} y #{t2})"}
   end
 end

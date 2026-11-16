@@ -50,8 +50,11 @@ defmodule GestorFamiliares do
 
   @impl true
   def handle_call({:reportar_persona, username, id, doc, nom, edad, zona, est}, _from, estado) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :reportar_persona, "reportar_persona #{doc}"),
+    with {:ok, _usuario} <-
+     GestorUsuarios.validar_y_registrar(username, :reportar_persona, "reportar_persona #{doc}"),
          false <- existe_id?(estado.personas, id),
+         false <- existe_doc?(estado.personas, doc),
+         true <- GestorZonas.existe_zona?(zona),
          {:ok, persona} <- PersonaAfectada.crear_afectada(id, doc, nom, edad, zona, est) do
       GestorZonas.asociar_elemento(zona, :reportes, id)
       nuevas_personas = [persona | estado.personas]
@@ -59,13 +62,16 @@ defmodule GestorFamiliares do
       {:reply, {:ok, persona}, %{estado | personas: nuevas_personas}}
     else
       true -> {:reply, {:error, "el id de persona #{id} ya existe"}, estado}
+      false -> {:reply, {:error, "La zona '#{zona}' no existe. Regístrela primero"}, estado}
       error -> {:reply, error, estado}
     end
   end
 
   @impl true
   def handle_call({:cambiar_estado_persona, username, doc, nuevo_est}, _from, estado) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :reportar_persona, "estado_persona #{doc} -> #{nuevo_est}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, 
+    :reportar_persona, "estado_persona #{doc} -> #{nuevo_est}"),
          {:ok, persona} <- buscar_por_doc(estado.personas, doc),
          {:ok, pers_act} <- PersonaAfectada.cambiar_estado(persona, nuevo_est) do
       nuevas_personas = reemplazar_por_id(estado.personas, pers_act)
@@ -88,7 +94,8 @@ defmodule GestorFamiliares do
 
   @impl true
   def handle_call({:enviar_mensaje, username, id, destinatario, contenido}, _from, estado) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :enviar_mensaje, "enviar_mensaje #{id}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :enviar_mensaje, "enviar_mensaje #{id}"),
          false <- existe_id?(estado.mensajes, id),
          {:ok, msg} <- MensajeFamiliar.crear_mensaje(id, username, destinatario, contenido) do
       nuevos_mensajes = [msg | estado.mensajes]
@@ -102,9 +109,24 @@ defmodule GestorFamiliares do
 
   @impl true
   def handle_call({:marcar_entregado, username, id_msg}, _from, estado) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :enviar_mensaje, "entregar_mensaje #{id_msg}"),
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :enviar_mensaje, "entregar_mensaje #{id_msg}"),
          {:ok, msg} <- buscar_por_id(estado.mensajes, id_msg),
          {:ok, msg_act} <- MensajeFamiliar.marcar_entregado(msg) do
+      nuevos_mensajes = reemplazar_por_id(estado.mensajes, msg_act)
+      GestorPersistencia.actualizar_lista(:mensajes, nuevos_mensajes)
+      {:reply, {:ok, msg_act}, %{estado | mensajes: nuevos_mensajes}}
+    else
+      error -> {:reply, error, estado}
+    end
+  end
+
+ @impl true
+  def handle_call({:marcar_pendiente, username, id_msg}, _from, estado) do
+    with {:ok, _usuario} <-
+           GestorUsuarios.validar_y_registrar(username, :enviar_mensaje, "pendiente_mensaje #{id_msg}"),
+         {:ok, msg} <- buscar_por_id(estado.mensajes, id_msg),
+         {:ok, msg_act} <- MensajeFamiliar.marcar_pendiente(msg) do
       nuevos_mensajes = reemplazar_por_id(estado.mensajes, msg_act)
       GestorPersistencia.actualizar_lista(:mensajes, nuevos_mensajes)
       {:reply, {:ok, msg_act}, %{estado | mensajes: nuevos_mensajes}}
@@ -126,6 +148,10 @@ defmodule GestorFamiliares do
   defp existe_id?([], _id), do: false
   defp existe_id?([h | _t], id) when h.id == id, do: true
   defp existe_id?([_h | t], id), do: existe_id?(t, id)
+
+  defp existe_doc?([], _doc), do: false
+  defp existe_doc?([h | _t], doc) when h.documento == doc, do: true
+  defp existe_doc?([_h | t], doc), do: existe_doc?(t, doc)
 
   defp buscar_por_id([], id), do: {:error, "registro #{id} no encontrado"}
   defp buscar_por_id([h | _t], id) when h.id == id, do: {:ok, h}

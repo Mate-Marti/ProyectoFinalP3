@@ -69,9 +69,10 @@ defmodule GestorZonas do
 
   @impl true
   def handle_call({:agregar_punto_atencion, username, cod_zona, cod_sector, punto}, _from, zonas) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_zona, "agregar_punto #{punto}"),
-         {:ok, zona} <- buscar_por_codigo(zonas, cod_zona) do
-      zona_act = Zona.agregar_punto_atencion(zona, cod_sector, punto)
+    with {:ok, _usuario} <- 
+    GestorUsuarios.validar_y_registrar(username, :registrar_zona, "agregar_punto #{punto}"),
+         {:ok, zona} <- buscar_por_codigo(zonas, cod_zona),
+         {:ok, zona_act} <- Zona.agregar_punto_atencion(zona, cod_sector, punto) do
       nuevas_zonas = reemplazar_por_codigo(zonas, zona_act)
       GestorPersistencia.actualizar_lista(:zonas, nuevas_zonas)
       {:reply, {:ok, zona_act}, nuevas_zonas}
@@ -87,7 +88,6 @@ defmodule GestorZonas do
       error -> {:reply, error, zonas}
     end
   end
-
   @impl true
   def handle_call({:estadisticas_zona, cod_zona}, _from, zonas) do
     case buscar_por_codigo(zonas, cod_zona) do
@@ -100,6 +100,12 @@ defmodule GestorZonas do
   def handle_call(:listar_zonas, _from, zonas) do
     {:reply, {:ok, zonas}, zonas}
   end
+
+   @impl true
+  def handle_call({:existe_zona, cod_zona}, _from, zonas) do
+    {:reply, existe_codigo?(zonas, cod_zona), zonas}
+  end
+
 
   @impl true
   def handle_call({:asociar_elemento, cod_zona, tipo, id_elemento}, _from, zonas) do

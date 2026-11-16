@@ -35,23 +35,27 @@ defmodule NodoCliente do
   defp ciclo_cli(usuario_actual) do
     prompt = if usuario_actual == nil, do: "[sin_sesion]> ", else: "[#{usuario_actual}]> "
     linea = Util.ingresar(prompt, :texto)
-    tokens = tokenizar(linea)
-
-    case ejecutar_comando(tokens, usuario_actual) do
-      :salir ->
-        if usuario_actual != nil,
-          do: GestorUsuarios.desconectar(@nodo_servidor, usuario_actual)
-
-        Util.mostrar_mensaje("Sesión finalizada.")
-
-      {:nuevo_usuario, nuevo_user} ->
-        ciclo_cli(nuevo_user)
-
-      :continuar ->
+     case tokenizar(linea) do
+      {:error, motivo} ->
+        Util.mostrar_error(motivo)
         ciclo_cli(usuario_actual)
+
+      {:ok, tokens} ->
+        case ejecutar_comando(tokens, usuario_actual) do
+          :salir ->
+            if usuario_actual != nil,
+              do: GestorUsuarios.desconectar(@nodo_servidor, usuario_actual)
+
+            Util.mostrar_mensaje("Sesión finalizada.")
+
+          {:nuevo_usuario, nuevo_user} ->
+            ciclo_cli(nuevo_user)
+
+          :continuar ->
+            ciclo_cli(usuario_actual)
+        end
     end
   end
-
   defp ejecutar_comando([], _user), do: :continuar
 
   defp ejecutar_comando(["ayuda"], _user) do
@@ -134,16 +138,146 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
   end
 
   defp ejecutar_comando(["desconectar"], user) do
-    GestorUsuarios.desconectar(@nodo_servidor, user)
-    Util.mostrar_mensaje("Usuario #{user} desconectado.")
-    {:nuevo_usuario, nil}
+    case GestorUsuarios.desconectar(@nodo_servidor, user) do
+      {:ok, msg} ->
+        Util.mostrar_mensaje(msg)
+        {:nuevo_usuario, nil}
+
+      error ->
+        imprimir_respuesta(error)
+        :continuar
+    end
   end
 
   defp ejecutar_comando(["actividad", user], _actual) do
     imprimir_respuesta(GestorUsuarios.actividad_usuario(@nodo_servidor, user))
     :continuar
   end
+ # Consultas públicas (no requieren sesión)
+  defp ejecutar_comando(["consultar_zona", cod_z], _user) do
+    imprimir_respuesta(GestorZonas.consultar_zona(@nodo_servidor, cod_z))
+    :continuar
+  end
+  defp ejecutar_comando(["estadisticas_zona", cod_z], _user) do
+    imprimir_respuesta(GestorZonas.estadisticas_zona(@nodo_servidor, cod_z))
+    :continuar
+  end
 
+  defp ejecutar_comando(["listar_necesidades" | filtros], _user) do
+    case parsear_filtros_necesidad(filtros, {nil, nil, nil, nil}) do
+      {:ok, {zona, tipo, prio, est}} ->
+        imprimir_respuesta(GestorNecesidades.listar_necesidades(@nodo_servidor, zona, tipo, prio, est))
+
+      error ->
+        imprimir_respuesta(error)
+    end
+
+    :continuar
+  end
+defp ejecutar_comando(["necesidades_pendientes"], _user) do
+    imprimir_respuesta(
+      GestorNecesidades.listar_necesidades(@nodo_servidor, nil, nil, nil, :pendiente)
+    )
+
+    :continuar
+  end
+
+  defp ejecutar_comando(["listar_recursos"], _user) do
+    imprimir_respuesta(GestorRecursos.listar_recursos(@nodo_servidor))
+    :continuar
+  end
+
+  defp ejecutar_comando(["recursos_criticos"], user),
+    do: ejecutar_comando(["recursos_criticos", "10"], user)
+
+  defp ejecutar_comando(["recursos_criticos", umbral], _user) do
+    with {:ok, valor} <- a_numero(umbral) do
+      imprimir_respuesta(GestorRecursos.recursos_criticos(@nodo_servidor, valor))
+    else
+      err -> imprimir_respuesta(err)
+    end
+
+    :continuar
+  end
+defp ejecutar_comando(["buscar_persona", criterio], _user) do
+    imprimir_respuesta(GestorFamiliares.buscar_personas(@nodo_servidor, criterio))
+    :continuar
+  end
+
+  defp ejecutar_comando(["listar_mensajes", dest], _user) do
+    imprimir_respuesta(GestorFamiliares.listar_mensajes(@nodo_servidor, dest))
+    :continuar
+  end
+
+  defp ejecutar_comando(["listar_mascotas"], _user) do
+    imprimir_respuesta(GestorMascotas.listar_mascotas(@nodo_servidor))
+    :continuar
+  end
+
+  defp ejecutar_comando(["buscar_coincidencias"], _user) do
+    imprimir_respuesta(GestorMascotas.buscar_coincidencias(@nodo_servidor))
+    :continuar
+  end
+
+  defp ejecutar_comando(["consultar_albergue", cod], _user) do
+    imprimir_respuesta(GestorAlbergues.consultar_albergue(@nodo_servidor, cod))
+    :continuar
+  end
+
+  defp ejecutar_comando(["reporte_albergues"], _user) do
+    imprimir_respuesta(GestorAlbergues.reporte_ocupacion(@nodo_servidor))
+    :continuar
+  end
+defp ejecutar_comando(["resumen"], _user) do
+    {:ok, zonas} = GestorZonas.listar_zonas(@nodo_servidor)
+    {:ok, recursos} = GestorRecursos.listar_recursos(@nodo_servidor)
+    {:ok, necesidades} = GestorNecesidades.listar_necesidades(@nodo_servidor)
+    {:ok, albergues} = GestorAlbergues.reporte_ocupacion(@nodo_servidor)
+    {:ok, personas} = GestorFamiliares.listar_personas(@nodo_servidor)
+    {:ok, mensajes} = GestorFamiliares.todos_los_mensajes(@nodo_servidor)
+    {:ok, mascotas} = GestorMascotas.listar_mascotas(@nodo_servidor)
+
+    resumen = %{
+      total_zonas: length(zonas),
+      recursos_disponibles: recursos,
+      necesidades_ordenadas: necesidades,
+      albergues_ocupacion: albergues,
+      personas: personas,
+      mensajes: mensajes,
+      mascotas: mascotas
+    }
+
+    IO.inspect(resumen, pretty: true)
+    :continuar
+  end
+ # Bloqueo centralizado: cualquier operación de escritura exige sesión activa
+  defp ejecutar_comando([cmd | _], nil)
+       when cmd in [
+              "registrar_zona",
+              "agregar_sector",
+              "agregar_punto",
+              "registrar_necesidad",
+              "estado_necesidad",
+              "asignar_recurso",
+              "registrar_recurso",
+              "entrada_recurso",
+              "transferir_recurso",
+              "reportar_persona",
+              "estado_persona",
+              "enviar_mensaje",
+              "entregar_mensaje",
+              "pendiente_mensaje",
+              "reportar_mascota",
+              "confirmar_mascota",
+              "registrar_albergue",
+              "ingreso_albergue",
+              "salida_albergue",
+              "asociar_recurso_albergue",
+              "asociar_necesidad_albergue"
+            ] do
+    Util.mostrar_error("Debe iniciar sesión antes de ejecutar '#{cmd}'. Use: conectar <usuario> <contrasena> ...")
+    :continuar
+  end
   #zonas
   defp ejecutar_comando(["registrar_zona", cod, nom, nivel], user),
     do: ejecutar_comando(["registrar_zona", cod, nom, nivel, "0"], user)
@@ -182,19 +316,7 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
 
     :continuar
   end
-
-  defp ejecutar_comando(["consultar_zona", cod_z], _user) do
-    imprimir_respuesta(GestorZonas.consultar_zona(@nodo_servidor, cod_z))
-    :continuar
-  end
-
-  defp ejecutar_comando(["estadisticas_zona", cod_z], _user) do
-    imprimir_respuesta(GestorZonas.estadisticas_zona(@nodo_servidor, cod_z))
-    :continuar
-  end
-
-  #necesidades
-  defp ejecutar_comando(["registrar_necesidad", id, tipo, cant, prio, zona, desc], user) do
+ defp ejecutar_comando(["registrar_necesidad", id, tipo, cant, prio, zona, desc], user) do
     with {:ok, cantidad} <- a_numero(cant) do
       imprimir_respuesta(
         GestorNecesidades.registrar_necesidad(
@@ -215,29 +337,14 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  defp ejecutar_comando(["listar_necesidades" | filtros], _user) do
-    {zona, tipo, prio, est} = parsear_filtros_necesidad(filtros, {nil, nil, nil, nil})
-    imprimir_respuesta(GestorNecesidades.listar_necesidades(@nodo_servidor, zona, tipo, prio, est))
-    :continuar
-  end
-
-  defp ejecutar_comando(["necesidades_pendientes"], _user) do
-    imprimir_respuesta(
-      GestorNecesidades.listar_necesidades(@nodo_servidor, nil, nil, nil, :pendiente)
-    )
-
-    :continuar
-  end
-
-  defp ejecutar_comando(["estado_necesidad", id_nec, nuevo_est], user) do
+defp ejecutar_comando(["estado_necesidad", id_nec, nuevo_est], user) do
     imprimir_respuesta(
       GestorNecesidades.cambiar_estado(@nodo_servidor, user, id_nec, String.to_atom(nuevo_est))
     )
 
     :continuar
   end
-
-  defp ejecutar_comando(["asignar_recurso", id_nec, cod_o_cat, cant], user) do
+defp ejecutar_comando(["asignar_recurso", id_nec, cod_o_cat, cant], user) do
     with {:ok, cantidad} <- a_numero(cant) do
       objetivo =
         if String.starts_with?(cod_o_cat, "R"),
@@ -253,8 +360,7 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
 
     :continuar
   end
-
-  #recursos
+ #recursos
   defp ejecutar_comando(["registrar_recurso", cod, nom, cat, cant, uni, ubi], user) do
     with {:ok, cantidad} <- a_numero(cant) do
       imprimir_respuesta(
@@ -275,8 +381,7 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
 
     :continuar
   end
-
-  defp ejecutar_comando(["entrada_recurso", cod, cant], user) do
+ defp ejecutar_comando(["entrada_recurso", cod, cant], user) do
     with {:ok, cantidad} <- a_numero(cant) do
       imprimir_respuesta(GestorRecursos.entrada_recurso(@nodo_servidor, user, cod, cantidad))
     else
@@ -286,25 +391,51 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  defp ejecutar_comando(["listar_recursos"], _user) do
-    imprimir_respuesta(GestorRecursos.listar_recursos(@nodo_servidor))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  defp ejecutar_comando(["consultar_zona", cod_z], _user) do
+    imprimir_respuesta(GestorZonas.consultar_zona(@nodo_servidor, cod_z))
     :continuar
   end
 
-  defp ejecutar_comando(["recursos_criticos"], user),
-    do: ejecutar_comando(["recursos_criticos", "10"], user)
-
-  defp ejecutar_comando(["recursos_criticos", umbral], _user) do
-    with {:ok, valor} <- a_numero(umbral) do
-      imprimir_respuesta(GestorRecursos.recursos_criticos(@nodo_servidor, valor))
-    else
-      err -> imprimir_respuesta(err)
-    end
-
+  defp ejecutar_comando(["estadisticas_zona", cod_z], _user) do
+    imprimir_respuesta(GestorZonas.estadisticas_zona(@nodo_servidor, cod_z))
     :continuar
   end
 
-  defp ejecutar_comando(["transferir_recurso", cod, origen, destino, cant], user) do
+  #necesidades
+ 
+
+  defp ejecutar_comando(["listar_necesidades" | filtros], _user) do
+    {zona, tipo, prio, est} = parsear_filtros_necesidad(filtros, {nil, nil, nil, nil})
+    imprimir_respuesta(GestorNecesidades.listar_necesidades(@nodo_servidor, zona, tipo, prio, est))
+    :continuar
+  end
+
+  defp ejecutar_comando(["necesidades_pendientes"], _user) do
+    imprimir_respuesta(
+      GestorNecesidades.listar_necesidades(@nodo_servidor, nil, nil, nil, :pendiente)
+    )
+
+    :continuar
+  end
+ defp ejecutar_comando(["transferir_recurso", cod, origen, destino, cant], user) do
     with {:ok, cantidad} <- a_numero(cant) do
       imprimir_respuesta(
         GestorRecursos.transferir_recurso(@nodo_servidor, user, cod, origen, destino, cantidad)
@@ -316,7 +447,7 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  #personas y mensajes
+   #personas y mensajes
   defp ejecutar_comando(["reportar_persona", id, doc, nom, edad, zona, est], user) do
     with {:ok, edad_num} <- a_entero(edad) do
       imprimir_respuesta(
@@ -346,12 +477,39 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  defp ejecutar_comando(["buscar_persona", criterio], _user) do
-    imprimir_respuesta(GestorFamiliares.buscar_personas(@nodo_servidor, criterio))
+ 
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+  defp ejecutar_comando(["listar_recursos"], _user) do
+    imprimir_respuesta(GestorRecursos.listar_recursos(@nodo_servidor))
     :continuar
   end
 
-  defp ejecutar_comando(["enviar_mensaje", id, dest, contenido], user) do
+  defp ejecutar_comando(["recursos_criticos"], user),
+    do: ejecutar_comando(["recursos_criticos", "10"], user)
+
+  defp ejecutar_comando(["recursos_criticos", umbral], _user) do
+    with {:ok, valor} <- a_numero(umbral) do
+      imprimir_respuesta(GestorRecursos.recursos_criticos(@nodo_servidor, valor))
+    else
+      err -> imprimir_respuesta(err)
+    end
+
+    :continuar
+  end
+
+ defp ejecutar_comando(["enviar_mensaje", id, dest, contenido], user) do
     imprimir_respuesta(GestorFamiliares.enviar_mensaje(@nodo_servidor, user, id, dest, contenido))
     :continuar
   end
@@ -360,40 +518,16 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     imprimir_respuesta(GestorFamiliares.marcar_entregado(@nodo_servidor, user, id_msg))
     :continuar
   end
-
-  defp ejecutar_comando(["listar_mensajes", dest], _user) do
-    imprimir_respuesta(GestorFamiliares.listar_mensajes(@nodo_servidor, dest))
+ defp ejecutar_comando(["pendiente_mensaje", id_msg], user) do
+    imprimir_respuesta(GestorFamiliares.marcar_pendiente(@nodo_servidor, user, id_msg))
     :continuar
   end
 
-  #mascotas
   defp ejecutar_comando(["reportar_mascota", id, tipo, esp, nom, car, col, tam, zona, cont], user) do
     imprimir_respuesta(
       GestorMascotas.reportar_mascota(
-        @nodo_servidor,
-        user,
-        id,
-        String.to_atom(tipo),
-        esp,
-        nom,
-        car,
-        col,
-        tam,
-        zona,
-        cont
-      )
-    )
+        @nodo_servidor, user, id, String.to_atom(tipo), esp, nom, car, col, tam, zona, cont ) )
 
-    :continuar
-  end
-
-  defp ejecutar_comando(["listar_mascotas"], _user) do
-    imprimir_respuesta(GestorMascotas.listar_mascotas(@nodo_servidor))
-    :continuar
-  end
-
-  defp ejecutar_comando(["buscar_coincidencias"], _user) do
-    imprimir_respuesta(GestorMascotas.buscar_coincidencias(@nodo_servidor))
     :continuar
   end
 
@@ -402,7 +536,6 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  #albergues
   defp ejecutar_comando(["registrar_albergue", cod, nom, zona, cap], user) do
     with {:ok, capacidad} <- a_entero(cap) do
       imprimir_respuesta(
@@ -412,11 +545,6 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
       err -> imprimir_respuesta(err)
     end
 
-    :continuar
-  end
-
-  defp ejecutar_comando(["consultar_albergue", cod], _user) do
-    imprimir_respuesta(GestorAlbergues.consultar_albergue(@nodo_servidor, cod))
     :continuar
   end
 
@@ -430,11 +558,6 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  defp ejecutar_comando(["reporte_albergues"], _user) do
-    imprimir_respuesta(GestorAlbergues.reporte_ocupacion(@nodo_servidor))
-    :continuar
-  end
-
   defp ejecutar_comando(["asociar_recurso_albergue", cod_alb, cod_rec], user) do
     imprimir_respuesta(GestorAlbergues.asociar_recurso(@nodo_servidor, user, cod_alb, cod_rec))
     :continuar
@@ -445,44 +568,20 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     :continuar
   end
 
-  #resumen consultando todos los genserveres
-  defp ejecutar_comando(["resumen"], _user) do
-    {:ok, zonas} = GestorZonas.listar_zonas(@nodo_servidor)
-    {:ok, recursos} = GestorRecursos.listar_recursos(@nodo_servidor)
-    {:ok, necesidades} = GestorNecesidades.listar_necesidades(@nodo_servidor)
-    {:ok, albergues} = GestorAlbergues.reporte_ocupacion(@nodo_servidor)
-    {:ok, personas} = GestorFamiliares.listar_personas(@nodo_servidor)
-    {:ok, mensajes} = GestorFamiliares.todos_los_mensajes(@nodo_servidor)
-    {:ok, mascotas} = GestorMascotas.listar_mascotas(@nodo_servidor)
-
-    resumen = %{
-      total_zonas: length(zonas),
-      recursos_disponibles: recursos,
-      necesidades_ordenadas: necesidades,
-      albergues_ocupacion: albergues,
-      personas: personas,
-      mensajes: mensajes,
-      mascotas: mascotas
-    }
-
-    IO.inspect(resumen, pretty: true)
-    :continuar
-  end
-
   defp ejecutar_comando(_otro, _user) do
-    Util.mostrar_error("Comando no reconocido o parámetros incompletos. Escribe 'ayuda'.")
+    Util.mostrar_error("Comando no reconocido o número de parámetros incorrecto. Escribe 'ayuda'.")
     :continuar
   end
 
   defp imprimir_respuesta({:ok, datos}), do: IO.inspect(datos, pretty: true)
-  defp imprimir_respuesta({:error, razon}), do: Util.mostrar_error("Error: #{razon}")
+  defp imprimir_respuesta({:error, razon}), do: Util.mostrar_error(razon)
   defp imprimir_respuesta(otro), do: IO.inspect(otro, pretty: true)
 
   defp a_entero(txt) do
     try do
       {:ok, String.to_integer(txt)}
     rescue
-      ArgumentError -> {:error, "se esperaba un número entero, se recibió: #{txt}"}
+      ArgumentError -> {:error, "Se esperaba un número entero, se recibió: '#{txt}'"}
     end
   end
 
@@ -495,14 +594,18 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
 
       {:ok, valor}
     rescue
-      ArgumentError -> {:error, "se esperaba un número válido, se recibió: #{txt}"}
+      ArgumentError -> {:error, "Se esperaba un número válido, se recibió: '#{txt}'"}
     end
   end
 
+  # CORREGIDO: Detecta comillas sin cerrar y retorna {:error, motivo}
   defp tokenizar(cadena), do: tokenizar_rec(String.trim(cadena), false, "", [])
 
-  defp tokenizar_rec("", _en_comillas, "", acc), do: Enum.reverse(acc)
-  defp tokenizar_rec("", _en_comillas, actual, acc), do: Enum.reverse([actual | acc])
+  defp tokenizar_rec("", true, _actual, _acc),
+    do: {:error, "Comillas sin cerrar en el comando. Revise las comillas dobles (\")."}
+
+  defp tokenizar_rec("", false, "", acc), do: {:ok, Enum.reverse(acc)}
+  defp tokenizar_rec("", false, actual, acc), do: {:ok, Enum.reverse([actual | acc])}
 
   defp tokenizar_rec(<<"\"", resto::binary>>, en_comillas, actual, acc) do
     tokenizar_rec(resto, not en_comillas, actual, acc)
@@ -520,18 +623,25 @@ defp ejecutar_comando(["conectar", user, pass], actual) do
     tokenizar_rec(resto, en_comillas, actual <> <<c::utf8>>, acc)
   end
 
-  defp parsear_filtros_necesidad([], acc), do: acc
-  defp parsear_filtros_necesidad([f | resto], {zona, tipo, prio, est}) do
-    nuevo =
-      case String.split(f, "=", parts: 2) do
-        ["zona", val] -> {val, tipo, prio, est}
-        ["tipo", val] -> {zona, String.to_atom(val), prio, est}
-        ["prioridad", val] -> {zona, tipo, String.to_atom(val), est}
-        ["estado", val] -> {zona, tipo, prio, String.to_atom(val)}
-        _ -> {zona, tipo, prio, est}
-      end
+  defp parsear_filtros_necesidad([], acc), do: {:ok, acc}
 
-    parsear_filtros_necesidad(resto, nuevo)
+  defp parsear_filtros_necesidad([f | resto], {zona, tipo, prio, est}) do
+    case String.split(f, "=", parts: 2) do
+      ["zona", val] when val != "" ->
+        parsear_filtros_necesidad(resto, {val, tipo, prio, est})
+
+      ["tipo", val] when val != "" ->
+        parsear_filtros_necesidad(resto, {zona, String.to_atom(val), prio, est})
+
+      ["prioridad", val] when val != "" ->
+        parsear_filtros_necesidad(resto, {zona, tipo, String.to_atom(val), est})
+
+      ["estado", val] when val != "" ->
+        parsear_filtros_necesidad(resto, {zona, tipo, prio, String.to_atom(val)})
+
+      _ ->
+        {:error, "Filtro inválido: '#{f}'. Use: zona=X, tipo=Y, prioridad=Z o estado=W"}
+    end
   end
 end
 

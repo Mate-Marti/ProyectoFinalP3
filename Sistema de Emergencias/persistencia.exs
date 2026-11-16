@@ -47,7 +47,26 @@ defmodule Persistencia do
     File.write!(ruta, contenido)
     :ok
   end
+# Escapa caracteres reservados (@, |, ;, ,) para que correos o descripciones no rompan el archivo
+  defp escapar(valor) do
+    valor
+    |> to_string()
+    |> String.replace("%", "%25")
+    |> String.replace("@", "%40")
+    |> String.replace("|", "%7C")
+    |> String.replace(";", "%3B")
+    |> String.replace(",", "%2C")
+    |> String.replace("\n", " ")
+  end
 
+  defp desescapar(valor) do
+    valor
+    |> String.replace("%2C", ",")
+    |> String.replace("%3B", ";")
+    |> String.replace("%7C", "|")
+    |> String.replace("%40", "@")
+    |> String.replace("%25", "%")
+  end
   #lectura recursiva de las lineas del archivo
   defp parsear_lineas_rec([], estado) do
     %{
@@ -197,9 +216,9 @@ defmodule Persistencia do
 
   defp formatear_sectores_rec([], acc), do: Enum.reverse(acc)
 
-  defp formatear_sectores_rec([s | resto], acc) do
-    puntos_txt = Enum.join(s.puntos_atencion, ",")
-    item = "#{s.codigo}|#{s.nombre}|#{s.personas_afectadas}|#{puntos_txt}"
+ defp formatear_sectores_rec([s | resto], acc) do
+    puntos_txt = s.puntos_atencion |> Enum.map(&escapar/1) |> Enum.join(",")
+    item = "#{escapar(s.codigo)}|#{escapar(s.nombre)}|#{s.personas_afectadas}|#{puntos_txt}"
     formatear_sectores_rec(resto, [item | acc])
   end
 
@@ -208,11 +227,14 @@ defmodule Persistencia do
   defp parsear_sectores_rec([s_txt | resto], acc) do
     case String.split(s_txt, "|") do
       [cod, nom, pers, puntos_txt] ->
-        puntos = if puntos_txt == "", do: [], else: String.split(puntos_txt, ",")
+        puntos =
+          if puntos_txt == "",
+            do: [],
+            else: Enum.map(String.split(puntos_txt, ","), &desescapar/1)
 
         sector = %{
-          codigo: cod,
-          nombre: nom,
+          codigo: desescapar(cod),
+          nombre: desescapar(nom),
           personas_afectadas: String.to_integer(pers),
           puntos_atencion: puntos
         }
@@ -224,23 +246,33 @@ defmodule Persistencia do
     end
   end
 
-  defp formatear_recurso(r),
-    do: "RECURSO@#{r.codigo}@#{r.nombre}@#{r.categoria}@#{r.cantidad}@#{r.unidad}@#{r.ubicacion}"
+   defp formatear_recurso(r),
+    do:
+      "RECURSO@#{escapar(r.codigo)}@#{escapar(r.nombre)}@#{r.categoria}@#{r.cantidad}@#{escapar(r.unidad)}@#{escapar(r.ubicacion)}"
 
   defp formatear_necesidad(n),
-    do: "NECESIDAD@#{n.id}@#{n.tipo}@#{n.descripcion}@#{n.cantidad}@#{n.zona}@#{n.prioridad}@#{n.responsable}@#{n.estado}"
+    do:
+      "NECESIDAD@#{escapar(n.id)}@#{n.tipo}@#{escapar(n.descripcion)}@#{n.cantidad}@#{n.cantidad_asignada}@#{escapar(n.zona)}@#{n.prioridad}@#{escapar(n.responsable)}@#{n.estado}"
 
-  defp formatear_albergue(a),
-    do: "ALBERGUE@#{a.codigo}@#{a.nombre}@#{a.zona}@#{a.capacidad_maxima}@#{a.ocupacion_actual}@#{Enum.join(a.personas, ",")}@#{Enum.join(a.recursos, ",")}@#{Enum.join(a.necesidades, ",")}"
+  defp formatear_albergue(a) do
+    pers = a.personas |> Enum.map(&escapar/1) |> Enum.join(",")
+    recs = a.recursos |> Enum.map(&escapar/1) |> Enum.join(",")
+    necs = a.necesidades |> Enum.map(&escapar/1) |> Enum.join(",")
+
+    "ALBERGUE@#{escapar(a.codigo)}@#{escapar(a.nombre)}@#{escapar(a.zona)}@#{a.capacidad_maxima}@#{a.ocupacion_actual}@#{pers}@#{recs}@#{necs}"
+  end
 
   defp formatear_persona(p),
-    do: "PERSONA@#{p.id}@#{p.documento}@#{p.nombre}@#{p.edad}@#{p.zona}@#{p.estado}"
+    do:
+      "PERSONA@#{escapar(p.id)}@#{escapar(p.documento)}@#{escapar(p.nombre)}@#{p.edad}@#{escapar(p.zona)}@#{p.estado}"
 
   defp formatear_mensaje(m),
-    do: "MENSAJE@#{m.id}@#{DateTime.to_iso8601(m.fecha)}@#{m.remitente}@#{m.destinatario}@#{m.contenido}@#{m.estado}"
+    do:
+      "MENSAJE@#{escapar(m.id)}@#{DateTime.to_iso8601(m.fecha)}@#{escapar(m.remitente)}@#{escapar(m.destinatario)}@#{escapar(m.contenido)}@#{m.estado}"
 
   defp formatear_mascota(m),
-    do: "MASCOTA@#{m.id}@#{m.tipo_reporte}@#{m.especie}@#{m.nombre}@#{m.caracteristicas}@#{m.color}@#{m.tamano}@#{m.zona}@#{m.contacto}@#{m.estado}"
+    do:
+      "MASCOTA@#{escapar(m.id)}@#{m.tipo_reporte}@#{escapar(m.especie)}@#{escapar(m.nombre)}@#{escapar(m.caracteristicas)}@#{escapar(m.color)}@#{escapar(m.tamano)}@#{escapar(m.zona)}@#{escapar(m.contacto)}@#{m.estado}"
 
   defp parsear_num(txt) do
     if String.contains?(txt, "."), do: String.to_float(txt), else: String.to_integer(txt)

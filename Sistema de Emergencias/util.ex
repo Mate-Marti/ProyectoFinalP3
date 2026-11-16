@@ -1,23 +1,30 @@
 defmodule Util do
-  def mostrar_mensaje({:ok, mensaje}) do
-    IO.puts(mensaje)
-  end
-
-  def mostrar_mensaje({:error, mensaje}) do
-    IO.puts(mensaje)
-  end
-
-  def mostrar_mensaje(mensaje) do
-    IO.puts(mensaje)
-  end
+  def mostrar_mensaje({:ok, mensaje}), do: IO.puts(mensaje)
+  def mostrar_mensaje({:error, mensaje}), do: mostrar_error(mensaje)
+  def mostrar_mensaje(mensaje), do: IO.puts(mensaje)
 
   def mostrar_error(mensaje) do
-    IO.puts(:standard_error, mensaje)
+    IO.puts(:standard_error, "Error: #{mensaje}")
   end
+
   def ingresar(mensaje, :texto) do
-    mensaje
-    |> IO.gets()
-    |> String.trim()
+    case IO.gets(mensaje) do
+      :eof -> ""
+      {:error, _} -> ""
+      texto -> String.trim(texto)
+    end
+  end
+
+  # NUEVO: Evita que el usuario deje campos obligatorios en blanco al dar Enter
+  def ingresar(mensaje, :texto_no_vacio) do
+    valor = ingresar(mensaje, :texto)
+
+    if valor == "" do
+      mostrar_error("El campo no puede estar vacío. Intente nuevamente.")
+      ingresar(mensaje, :texto_no_vacio)
+    else
+      valor
+    end
   end
 
   def ingresar(mensaje, :entero) do
@@ -39,19 +46,16 @@ defmodule Util do
       |> parser.()
     rescue
       ArgumentError ->
-        "Error, se espera que ingrese un número #{tipo_dato}\n"
-        |> mostrar_error()
-
-        mensaje
-        |> ingresar(parser, tipo_dato)
+        mostrar_error("Se espera que ingrese un valor válido de tipo #{tipo_dato}.\n")
+        ingresar(mensaje, parser, tipo_dato)
     end
   end
 
   defp convertir_booleano(valor) do
-    case valor |> String.downcase() do
-     v when v in ["si", "sí", "s"] -> true
-     v when v in ["no", "n"] -> false
-    _ -> raise ArgumentError
+    case String.downcase(valor) do
+      v when v in ["si", "sí", "s"] -> true
+      v when v in ["no", "n"] -> false
+      _ -> raise ArgumentError
     end
   end
 

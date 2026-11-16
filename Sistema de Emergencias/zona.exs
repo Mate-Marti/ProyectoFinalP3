@@ -1,61 +1,87 @@
 defmodule Zona do
 
   defstruct [:codigo, :nombre, :nivel_afectacion, personas_afectadas: 0, sectores: [], albergues: [], necesidades: [], recursos: [], reportes: []]
-
+@niveles [:critico, :alto, :medio, :bajo]
+ 
   def crear_zona(codigo, nombre, nivel, personas \\ 0)
 
-  def crear_zona(codigo, nombre, nivel, personas)
-      when nivel in [:critico, :alto, :medio, :bajo] and is_integer(personas) and personas >= 0 do
-    {:ok,
-      %Zona{
-      codigo: codigo,
-      nombre: nombre,
-      nivel_afectacion: nivel,
-      personas_afectadas: personas
-    }}
+  def crear_zona(codigo, nombre, nivel, personas) do
+    with :ok <- validar_texto(codigo, "código de zona"),
+         :ok <- validar_texto(nombre, "nombre de zona"),
+         :ok <- validar_nivel(nivel),
+         :ok <- validar_entero_no_negativo(personas, "personas afectadas") do
+      {:ok,
+       %Zona{
+         codigo: String.trim(codigo),
+         nombre: String.trim(nombre),
+         nivel_afectacion: nivel,
+         personas_afectadas: personas
+       }}
+    end
   end
 
-  def crear_zona(_codigo, _nombre, _nivel, _personas),
-    do: {:error, "nivel de afectación o cantidad de personas invalidos"}
-
-  #registrar un sector en la zona
+#retorna {:ok, zona} o {:error, motivo} validando duplicados y negativos
   def agregar_sector(%Zona{} = zona, codigo_sector, nombre_sector, personas \\ 0) do
-    nuevo_sector = %{
-      codigo: codigo_sector,
-      nombre: nombre_sector,
-      personas_afectadas: personas,
-      puntos_atencion: [],
-    }
+    with :ok <- validar_texto(codigo_sector, "código de sector"),
+         :ok <- validar_texto(nombre_sector, "nombre de sector"),
+         :ok <- validar_entero_no_negativo(personas, "personas afectadas del sector"),
+         false <- existe_sector?(zona.sectores, String.trim(codigo_sector)) do
+      nuevo_sector = %{
+        codigo: String.trim(codigo_sector),
+        nombre: String.trim(nombre_sector),
+        personas_afectadas: personas,
+        puntos_atencion: []
+      }
 
-    %{zona | sectores: [nuevo_sector | zona.sectores]}
+      {:ok, %{zona | sectores: [nuevo_sector | zona.sectores]}}
+    else
+      true -> {:error, "El sector '#{codigo_sector}' ya existe en la zona '#{zona.codigo}'"}
+      error -> error
+    end
   end
 
-
-  #Registrar un punto de atención dentro de un sector (estructura: zona -> sectores -> puntos_atencion)
+   # CORREGIDO: Si el sector no existe o el punto ya existe/está vacío, devuelve {:error, motivo}
   def agregar_punto_atencion(%Zona{} = zona, codigo_sector, punto_atencion) do
-    nuevos_sectores = insertar_punto_rec(zona.sectores, codigo_sector, punto_atencion)
-    %{zona | sectores: nuevos_sectores}
+    with :ok <- validar_texto(codigo_sector, "código de sector"),
+         :ok <- validar_texto(punto_atencion, "punto de atención"),
+         {:ok, nuevos_sectores} <-
+           insertar_punto_rec(zona.sectores, String.trim(codigo_sector), String.trim(punto_atencion)) do
+      {:ok, %{zona | sectores: nuevos_sectores}}
+    end
   end
 
   #función para cuando no se encuentra el sector, retorna la lista de sectores sin cambios
-  defp insertar_punto_rec([], _codigo_sector, _punto), do: []
+  defp insertar_punto_rec([], codigo_sector, _punto), 
+  do: {:error, "El sector '#{codigo_sector}' no existe en la zona"}
 
   #función para cuando encuentra el sector, inserta el punto de atención y retorna la lista de sectores actualizada
-  defp insertar_punto_rec([sector | resto], codigo_sector, punto) when sector.codigo == codigo_sector do
-    sector_actualizado = %{sector | puntos_atencion: [punto | sector.puntos_atencion]}
-    [sector_actualizado | resto]
+  defp insertar_punto_rec([sector | resto], codigo_sector, punto)
+   when sector.codigo == codigo_sector do
+    if punto in sector.puntos_atencion do
+      {:error, "El punto de atención '#{punto}' ya está registrado en el sector '#{codigo_sector}'"}
+    else
+      sector_actualizado = %{sector | puntos_atencion: [punto | sector.puntos_atencion]}
+      {:ok, [sector_actualizado | resto]}
+    end
   end
 
-  #funcion para cuando no encuentra el sector, sigue buscando en el resto de la lista de sectores
   defp insertar_punto_rec([sector | resto], codigo_sector, punto) do
-    [sector | insertar_punto_rec(resto, codigo_sector, punto)]
+    case insertar_punto_rec(resto, codigo_sector, punto) do
+      {:ok, resto_actualizado} -> {:ok, [sector | resto_actualizado]}
+      error -> error
+    end
   end
 
-  #Asociar albergues, necesidades, recursos o reportes a la zona
+    # Asociar albergues, necesidades, recursos o reportes sin duplicar IDs
   def asociar(%Zona{} = zona, tipo, id_elemento)
       when tipo in [:albergues, :necesidades, :recursos, :reportes] do
     lista_actual = Map.get(zona, tipo)
-    Map.put(zona, tipo, [id_elemento | lista_actual])
+
+    if id_elemento in lista_actual do
+      zona
+    else
+      Map.put(zona, tipo, [id_elemento | lista_actual])
+    end
   end
 
   #Consultar el estado general de una zona
@@ -93,9 +119,8 @@ defmodule Zona do
   end
 
   #funciones recursivas para recorrer los sectores y contar los puntos de atención
-  defp recorrer_sectores_rec([], acc_personas, acc_sectores, acc_puntos) do
-    {acc_personas, acc_sectores, acc_puntos}
-  end
+  defp recorrer_sectores_rec([], acc_personas, acc_sectores, acc_puntos),
+   do: {acc_personas, acc_sectores, acc_puntos}
 
   #funcion para cuando encuentra un sector, suma las personas afectadas y cuenta los puntos de atención del sector, luego sigue recorriendo el resto de los sectores
   defp recorrer_sectores_rec([sector | resto], acc_personas, acc_sectores, acc_puntos) do
@@ -112,4 +137,21 @@ defmodule Zona do
   #funciones para contar los puntos de atención de un sector
   defp contar_puntos_rec([], acc), do: acc
   defp contar_puntos_rec([_punto | resto], acc), do: contar_puntos_rec(resto, acc + 1)
+
+    # Helpers de validación
+  defp existe_sector?([], _cod), do: false
+  defp existe_sector?([s | _], cod) when s.codigo == cod, do: true
+  defp existe_sector?([_ | t], cod), do: existe_sector?(t, cod)
+
+  defp validar_texto(val, campo) when is_binary(val) do
+    if String.trim(val) == "", do: {:error, "El campo '#{campo}' no puede estar vacío"}, else: :ok
+  end
+
+  defp validar_texto(_, campo), do: {:error, "El campo '#{campo}' debe ser texto"}
+
+  defp validar_nivel(nivel) when nivel in @niveles, do: :ok
+  defp validar_nivel(nivel), do: {:error, "Nivel inválido: #{inspect(nivel)}. Válidos: #{inspect(@niveles)}"}
+
+  defp validar_entero_no_negativo(n, _campo) when is_integer(n) and n >= 0, do: :ok
+  defp validar_entero_no_negativo(_, campo), do: {:error, "El campo '#{campo}' debe ser un entero >= 0"}
 end
