@@ -55,7 +55,7 @@ defmodule GestorMascotas do
 
   @impl true
   def handle_call({:confirmar_coincidencia, username, id_perdida, id_encontrada}, _from, mascotas) do
-    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :emparejaar_mascota, "confirmar_mascota #{id_perdida} y #{id_encontrada}"),
+    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :emparejar_mascota, "confirmar_mascota #{id_perdida} y #{id_encontrada}"),
          {:ok, rep_p} <- buscar_por_id(mascotas, id_perdida),
          {:ok, rep_e} <- buscar_por_id(mascotas, id_encontrada),
          {:ok, p_cerrado, e_cerrado} <- ReporteMascota.confirmar_coincidencia(rep_p, rep_e) do

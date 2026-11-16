@@ -3,6 +3,8 @@ defmodule Zona do
   defstruct [:codigo, :nombre, :nivel_afectacion, personas_afectadas: 0, sectores: [], albergues: [], necesidades: [], recursos: [], reportes: []]
 
   def crear_zona(codigo, nombre, nivel, personas \\ 0)
+
+  def crear_zona(codigo, nombre, nivel, personas)
       when nivel in [:critico, :alto, :medio, :bajo] and is_integer(personas) and personas >= 0 do
     {:ok,
       %Zona{

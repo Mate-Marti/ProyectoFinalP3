@@ -42,7 +42,12 @@ defmodule PersonaAfectada do
 
   def buscar_personas([], _criterio), do: []
   def buscar_personas([p | resto], criterio) do
-    if p.documento == criterio or p.nombre == criterio or p.zona == criterio or p.estado == criterio do
+    criterio_str = to_string(criterio)
+
+    if p.documento == criterio_str or
+         p.nombre == criterio_str or
+         p.zona == criterio_str or
+         Atom.to_string(p.estado) == criterio_str do
       [p | buscar_personas(resto, criterio)]
     else
       buscar_personas(resto, criterio)

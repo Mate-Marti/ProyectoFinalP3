@@ -2,17 +2,23 @@ defmodule Usuario do
 
   defstruct [:username, :password, :nombre_completo, :rol, :zona_principal, conectado: false, historial_actividad: []]
 
-  def crear_usuario(username, password, nombre_completo, rol, zona) when rol in [:ciudadano, :voluntario, :coordinador, :administrador] do
-    %Usuario{
-      username: username,
-      password: password,
-      nombre_completo: nombre_completo,
-      rol: rol,
-      zona_principal: zona,
-      conectado: false,
-      historial_actividad: []
-    }
-  end
+  @roles [:administrador, :coordinador, :voluntario, :ciudadano]
+
+ def crear_usuario(username, password, nombre_completo, rol, zona) when rol in @roles do
+  {:ok,
+   %Usuario{
+     username: username,
+     password: password,
+     nombre_completo: nombre_completo,
+     rol: rol,
+     zona_principal: zona,
+     conectado: false,
+     historial_actividad: []
+   }}
+end
+
+def crear_usuario(_username, _password, _nombre_completo, rol, _zona),
+  do: {:error, "rol inválido: #{inspect(rol)}. Opciones: #{inspect(@roles)}"}
 
   #se busca al usuario, si existe retorna un mapa
   def buscar_usuario([], _username), do: nil
@@ -21,27 +27,23 @@ defmodule Usuario do
 
 
   #coneccion del usuario
-  def connect(username, password, rol, zona, lista_usuarios) do
-    usuario_existente = buscar_usuario(lista_usuarios, username)
+  def connect(username, password, nombre_completo, rol, zona, lista_usuarios) do
+  usuario_existente = buscar_usuario(lista_usuarios, username)
 
-    cond do
-      #si no existe se registra y entra como conectado
-      usuario_existente == nil ->
-        nuevo_usuario = %{crear_usuario(username, password, username, rol, zona) | conectado: true}
-        IO.puts("usuario registrado y conectado")
-        lista_usuarios ++ [nuevo_usuario]
+  cond do
+    usuario_existente == nil ->
+      with {:ok, usuario} <- crear_usuario(username, password, nombre_completo, rol, zona) do
+        nuevo_usuario = %{usuario | conectado: true}
+        {:ok, lista_usuarios ++ [nuevo_usuario]}
+      end
 
-      #si existe se valida la contraseña
-      usuario_existente.password == password ->
-        IO.puts("bienvenido #{username}")
-        actualizar_estado_conexion(lista_usuarios, username, true)
+    usuario_existente.password == password ->
+      {:ok, actualizar_estado_conexion(lista_usuarios, username, true)}
 
-      #si la contraseña es incorrecta
-      true ->
-        IO.puts("error, la contraseña es incorrecta #{username}.")
-        lista_usuarios
-    end
+    true ->
+      {:error, "contraseña incorrecta para #{username}"}
   end
+end
 
   #desconectar al ususario
   def disconnect(username, lista_usuarios) do
@@ -75,7 +77,7 @@ defmodule Usuario do
   def puede_ejecutar?(%Usuario{conectado: false}, _operacion), do: false
 
   #funcion cuando el usuario es administrador puede ejecutar cualquier operacion
-  def puede_ejecutar?(%Usuario{rol: :administrador}, operacion), do: true
+  def puede_ejecutar?(%Usuario{rol: :administrador}, _operacion), do: true
 
   #funcion cuando el usuario es coordinador puede ejecutar ciertas operaciones
   def puede_ejecutar?(%Usuario{rol: :coordinador}, operacion)
@@ -88,7 +90,7 @@ defmodule Usuario do
       :reportar_persona,
       :enviar_mensaje,
       :reportar_mascota,
-      :emparejaar_mascota,
+      :emparejar_mascota,
       :registrar_albergue,
       :ingreso_albergue,
       :salida_albergue,
@@ -103,7 +105,7 @@ defmodule Usuario do
       :reportar_persona,
       :enviar_mensaje,
       :reportar_mascota,
-      :emparejaar_mascota,
+      :emparejar_mascota,
       :ingreso_albergue,
       :salida_albergue,
       :consultar
@@ -113,7 +115,7 @@ defmodule Usuario do
   #funcion cuando el usuario es ciudadano puede ejecutar ciertas operaciones
   def puede_ejecutar?(%Usuario{rol: :ciudadano}, operacion)
     when operacion in [
-      :reportar_necesidad,
+      :registrar_necesidad,
       :reportar_persona,
       :enviar_mensaje,
       :reportar_mascota,

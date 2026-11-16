@@ -25,6 +25,14 @@ defmodule GestorAlbergues do
     GenServer.call(destino(nodo), :reporte_ocupacion)
   end
 
+  def asociar_recurso(nodo \\ Node.self(), username, cod_albergue, cod_recurso) do
+    GenServer.call(destino(nodo), {:asociar_recurso, username, cod_albergue, cod_recurso})
+  end
+
+  def asociar_necesidad(nodo \\ Node.self(), username, cod_albergue, id_necesidad) do
+    GenServer.call(destino(nodo), {:asociar_necesidad, username, cod_albergue, id_necesidad})
+  end
+
   defp destino(nodo), do: if(nodo == Node.self(), do: __MODULE__, else: {__MODULE__, nodo})
 
   @impl true
@@ -94,6 +102,34 @@ defmodule GestorAlbergues do
     {:reply, {:ok, Albergue.reporte_mayor_ocupacion(albergues)}, albergues}
   end
 
+  @impl true
+  def handle_call({:asociar_recurso, username, cod_alb, cod_rec}, _from, albergues) do
+    with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_albergue, "asociar_recurso #{cod_rec} -> #{cod_alb}"),
+         {:ok, albergue} <- buscar_por_codigo(albergues, cod_alb),
+         {:ok, alb_act} <- Albergue.asociar_recurso(albergue, cod_rec) do
+      nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)
+      GestorPersistencia.actualizar_lista(:albergues, nuevos_albergues)
+      {:reply, {:ok, alb_act}, nuevos_albergues}
+    else
+      error -> {:reply, error, albergues}
+    end
+  end
+
+
+@impl true
+def handle_call({:asociar_necesidad, username, cod_alb, id_nec}, _from, albergues) do
+  with {:ok, _usuario} <- GestorUsuarios.validar_y_registrar(username, :registrar_albergue, "asociar_necesidad #{id_nec} -> #{cod_alb}"),
+       {:ok, albergue} <- buscar_por_codigo(albergues, cod_alb),
+       {:ok, alb_act} <- Albergue.asociar_necesidad(albergue, id_nec) do
+    nuevos_albergues = reemplazar_por_codigo(albergues, alb_act)
+    GestorPersistencia.actualizar_lista(:albergues, nuevos_albergues)
+    {:reply, {:ok, alb_act}, nuevos_albergues}
+  else
+    error -> {:reply, error, albergues}
+  end
+end
+
+
   defp existe_codigo?([], _cod), do: false
   defp existe_codigo?([h | _t], cod) when h.codigo == cod, do: true
   defp existe_codigo?([_h | t], cod), do: existe_codigo?(t, cod)
@@ -105,4 +141,5 @@ defmodule GestorAlbergues do
   defp reemplazar_por_codigo([], _item), do: []
   defp reemplazar_por_codigo([h | t], item) when h.codigo == item.codigo, do: [item | t]
   defp reemplazar_por_codigo([h | t], item), do: [h | reemplazar_por_codigo(t, item)]
+
 end

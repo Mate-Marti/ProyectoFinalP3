@@ -5,8 +5,8 @@ defmodule GestorUsuarios do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
-  def conectar(nodo \\ Node.self(), username, password, rol, zona) do
-    GenServer.call(destino(nodo), {:conectar, username, password, rol, zona})
+  def conectar(nodo \\ Node.self(), username, password,nombre_completo , rol, zona) do
+    GenServer.call(destino(nodo), {:conectar, username, password, nombre_completo, rol, zona})
   end
 
   def desconectar(nodo \\ Node.self(), username) do
@@ -28,13 +28,17 @@ defmodule GestorUsuarios do
   def init(:ok) do
     {:ok, GestorPersistencia.obtener_lista(:usuarios)}
   end
+@impl true
+def handle_call({:conectar, username, password, nombre_completo, rol, zona}, _from, usuarios) do
+  case Usuario.connect(username, password, nombre_completo, rol, zona, usuarios) do
+    {:ok, nuevos_usuarios} ->
+      GestorPersistencia.actualizar_lista(:usuarios, nuevos_usuarios)
+      {:reply, {:ok, Usuario.buscar_usuario(nuevos_usuarios, username)}, nuevos_usuarios}
 
-  @impl true
-  def handle_call({:conectar, username, password, rol, zona}, _from, usuarios) do
-    nuevos_usuarios = Usuario.connect(username, password, rol, zona, usuarios)
-    GestorPersistencia.actualizar_lista(:usuarios, nuevos_usuarios)
-    {:reply, {:ok, Usuario.buscar_usuario(nuevos_usuarios, username)}, nuevos_usuarios}
+    {:error, motivo} ->
+      {:reply, {:error, motivo}, usuarios}
   end
+end
 
   @impl true
   def handle_call({:desconectar, username}, _from, usuarios) do

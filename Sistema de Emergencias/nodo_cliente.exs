@@ -7,6 +7,8 @@ Code.require_file("albergue.exs")
 Code.require_file("persona_afectada.exs")
 Code.require_file("Mensaje_Familiar.exs")
 Code.require_file("reporte_mascota.exs")
+Code.require_file("persistencia.exs")
+Code.require_file("gestores/gestor_persistencia.exs", __DIR__)
 Code.require_file("gestores/gestor_usuarios.exs", __DIR__)
 Code.require_file("gestores/gestor_zonas.exs", __DIR__)
 Code.require_file("gestores/gestor_recursos.exs", __DIR__)
@@ -58,7 +60,7 @@ defmodule NodoCliente do
       Comandos que se pueden usar junto con sus parámetros:
 
 
-      conectar <usuario> <contrasena> <rol> <zona>
+      conectar <usuario> <contrasena> <nombre_completo> <rol> <zona>
       desconectar
       actividad <usuario>
 
@@ -99,6 +101,9 @@ defmodule NodoCliente do
       salida_albergue <cod_albergue> <documento>
       reporte_albergues
 
+      asociar_recurso_albergue <cod_albergue> <cod_recurso>
+      asociar_necesidad_albergue <cod_albergue> <id_necesidad>
+
       resumen
       salir
     """)
@@ -109,10 +114,18 @@ defmodule NodoCliente do
   defp ejecutar_comando(["salir"], _user), do: :salir
 
   #usuarios
-  defp ejecutar_comando(["conectar", user, pass, rol, zona], _actual) do
-    respuesta = GestorUsuarios.conectar(@nodo_servidor, user, pass, String.to_atom(rol), zona)
+defp ejecutar_comando(["conectar", user, pass], actual) do
+    ejecutar_comando(["conectar", user, pass, user, "ciudadano", "general"], actual)
+  end
+
+  defp ejecutar_comando(["conectar", user, pass, nombre_completo, rol, zona], actual) do
+    respuesta = GestorUsuarios.conectar(@nodo_servidor, user, pass, nombre_completo, String.to_atom(rol), zona)
     imprimir_respuesta(respuesta)
-    {:nuevo_usuario, user}
+
+    case respuesta do
+      {:ok, _} -> {:nuevo_usuario, user}
+      _ -> {:nuevo_usuario, actual}
+    end
   end
 
   defp ejecutar_comando(["desconectar"], nil) do
@@ -202,8 +215,9 @@ defmodule NodoCliente do
     :continuar
   end
 
-  defp ejecutar_comando(["listar_necesidades"], _user) do
-    imprimir_respuesta(GestorNecesidades.listar_necesidades(@nodo_servidor))
+  defp ejecutar_comando(["listar_necesidades" | filtros], _user) do
+    {zona, tipo, prio, est} = parsear_filtros_necesidad(filtros, {nil, nil, nil, nil})
+    imprimir_respuesta(GestorNecesidades.listar_necesidades(@nodo_servidor, zona, tipo, prio, est))
     :continuar
   end
 
@@ -421,6 +435,16 @@ defmodule NodoCliente do
     :continuar
   end
 
+  defp ejecutar_comando(["asociar_recurso_albergue", cod_alb, cod_rec], user) do
+    imprimir_respuesta(GestorAlbergues.asociar_recurso(@nodo_servidor, user, cod_alb, cod_rec))
+    :continuar
+  end
+
+  defp ejecutar_comando(["asociar_necesidad_albergue", cod_alb, id_nec], user) do
+    imprimir_respuesta(GestorAlbergues.asociar_necesidad(@nodo_servidor, user, cod_alb, id_nec))
+    :continuar
+  end
+
   #resumen consultando todos los genserveres
   defp ejecutar_comando(["resumen"], _user) do
     {:ok, zonas} = GestorZonas.listar_zonas(@nodo_servidor)
@@ -494,6 +518,20 @@ defmodule NodoCliente do
 
   defp tokenizar_rec(<<c::utf8, resto::binary>>, en_comillas, actual, acc) do
     tokenizar_rec(resto, en_comillas, actual <> <<c::utf8>>, acc)
+  end
+
+  defp parsear_filtros_necesidad([], acc), do: acc
+  defp parsear_filtros_necesidad([f | resto], {zona, tipo, prio, est}) do
+    nuevo =
+      case String.split(f, "=", parts: 2) do
+        ["zona", val] -> {val, tipo, prio, est}
+        ["tipo", val] -> {zona, String.to_atom(val), prio, est}
+        ["prioridad", val] -> {zona, tipo, String.to_atom(val), est}
+        ["estado", val] -> {zona, tipo, prio, String.to_atom(val)}
+        _ -> {zona, tipo, prio, est}
+      end
+
+    parsear_filtros_necesidad(resto, nuevo)
   end
 end
 

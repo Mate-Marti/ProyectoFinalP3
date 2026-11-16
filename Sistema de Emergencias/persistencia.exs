@@ -116,8 +116,10 @@ defmodule Persistencia do
           }
           %{estado | necesidades: [item | estado.necesidades]}
 
-        ["ALBERGUE", cod, nom, zona, cap, ocu, pers] ->
+       ["ALBERGUE", cod, nom, zona, cap, ocu, pers, recs, necs] ->
           lista_pers = if pers == "", do: [], else: String.split(pers, ",")
+          lista_recs = if recs == "", do: [], else: String.split(recs, ",")
+          lista_necs = if necs == "", do: [], else: String.split(necs, ",")
 
           item = %Albergue{
             codigo: cod,
@@ -125,7 +127,9 @@ defmodule Persistencia do
             zona: zona,
             capacidad_maxima: String.to_integer(cap),
             ocupacion_actual: String.to_integer(ocu),
-            personas: lista_pers
+            personas: lista_pers,
+            recursos: lista_recs,
+            necesidades: lista_necs
           }
           %{estado | albergues: [item | estado.albergues]}
 
@@ -227,7 +231,7 @@ defmodule Persistencia do
     do: "NECESIDAD@#{n.id}@#{n.tipo}@#{n.descripcion}@#{n.cantidad}@#{n.zona}@#{n.prioridad}@#{n.responsable}@#{n.estado}"
 
   defp formatear_albergue(a),
-    do: "ALBERGUE@#{a.codigo}@#{a.nombre}@#{a.zona}@#{a.capacidad_maxima}@#{a.ocupacion_actual}@#{Enum.join(a.personas, ",")}"
+    do: "ALBERGUE@#{a.codigo}@#{a.nombre}@#{a.zona}@#{a.capacidad_maxima}@#{a.ocupacion_actual}@#{Enum.join(a.personas, ",")}@#{Enum.join(a.recursos, ",")}@#{Enum.join(a.necesidades, ",")}"
 
   defp formatear_persona(p),
     do: "PERSONA@#{p.id}@#{p.documento}@#{p.nombre}@#{p.edad}@#{p.zona}@#{p.estado}"
