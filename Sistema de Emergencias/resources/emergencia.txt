@@ -1,7 +1,14 @@
-USUARIO@laura@1234@Laura@coordinador@Z01
-ZONA@centro@Zona Centro@alto@100@
-ZONA@Z01@Zona Centro@critico@200@S01|Sector Parque|80|Hospital Móvil,Carpa Cruz Roja
-RECURSO@R001_destino_fantasma@Agua potable@agua@5@litros@destino_fantasma
-RECURSO@R003@Arroz@alimentos@50@kg@bodega_inexistente
-RECURSO@R001@Agua potable@agua@15@litros@centro_acopio_1
-NECESIDAD@N001@agua@Punto de atencion sector 3@30@30@centro@critica@laura@cancelada
+USUARIO@laura@1234@Laura Gomez@coordinador@centro
+USUARIO@andres@5678@Andres Lopez@coordinador@centro
+USUARIO@carlos@1111@Carlos Ruiz@ciudadano@zona_norte
+USUARIO@sofia@2222@Sofia Diaz@voluntario@zona_norte
+ZONA@zona_norte@Zona Norte@alto@150@
+ZONA@centro@Zona Centro@critico@300@
+RECURSO@R001@Agua potable@agua@20@litros@centro_acopio_1
+NECESIDAD@N002@agua@Punto de atencion sector 4@25@0@centro@critica@andres@pendiente
+NECESIDAD@N001@agua@Punto de atencion sector 3@30@30@centro@critica@laura@asignada
+ALBERGUE@A01@Albergue Norte@zona_norte@150@1@1094888111@@
+PERSONA@P001@1094888111@Andres@28@zona_norte@localizada
+MENSAJE@M001@2026-11-17T01:12:20.641000Z@carlos@1094888111@Hola Andres%2C estamos pendientes@pendiente
+MASCOTA@ME01@encontrada@perro@desconocido@Sin collar@negra@mediana@zona_norte@3104445566@activa
+MASCOTA@MP01@perdida@perro@Luna@Collar rojo@negra@mediana@zona_norte@3001112233@activa

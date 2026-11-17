@@ -88,6 +88,14 @@ defmodule GestorZonas do
       error -> {:reply, error, zonas}
     end
   end
+  def existe_zona?(nodo \\ Node.self(), codigo) do
+  GenServer.call(destino(nodo), {:existe_zona, codigo})
+end
+@impl true
+def handle_call({:existe_zona, codigo}, _from, zonas) do
+  existe = Enum.any?(zonas, fn z -> z.codigo == codigo end)
+  {:reply, existe, zonas}
+end
   @impl true
   def handle_call({:estadisticas_zona, cod_zona}, _from, zonas) do
     case buscar_por_codigo(zonas, cod_zona) do

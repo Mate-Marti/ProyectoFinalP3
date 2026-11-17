@@ -32,8 +32,7 @@ Para cerrar la sesión y salir del cliente, escribe salir. Para apagar el servid
 Ejemplo de comandos para probar todo el flujo
 Ejecuta estos comandos uno por uno en la terminal del cliente para comprobar que todas las funciones y la persistencia funcionan correctamente:
 
-conectar laura 1234 "Laura Gomez" coordinador centro
-registrar_zona centro "Zona Centro" alto 100
+conectar laura 1234 "Laura Gomez" coordinadora centro
 registrar_necesidad N001 agua 30 critica centro "Punto de atencion sector 3"
 registrar_recurso R001 "Agua potable" agua 50 litros centro_acopio_1
 asignar_recurso N001 agua 30
@@ -47,89 +46,54 @@ buscar_coincidencias
 resumen
 salir
 
+Para conectar varias terminales al mismo servidor al mismo tiempo en Windows, cada terminal debe tener un nombre de nodo distinto (--sname), pero todas deben usar exactamente la misma --cookie emergencia y apuntar a la carpeta del proyecto.Abre 4 ventanas o pestañas de PowerShell (todas dentro de C:\Users\USUARIO\Desktop\ProyectoFinalP3\Sistema de Emergencias) y ejecuta lo siguiente en cada una:  
 
+ Terminal 1: Servidor Central Arranca primero esta ventana para que levante el SupervisorEmergencia y los 8 GenServer:
+ elixir --sname servidor@localhost --cookie emergencia nodo_servidor.exs
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-conectar laura 9999 "Laura Gomez" coordinador centro
+Terminal 2: Cliente 1 — Laura (Coordinadora)Abre una segunda ventana de PowerShell y conéctala como cliente1:
+elixir --sname cliente1@localhost --cookie emergencia nodo_cliente.exs
+Dentro del menú del cliente:
 conectar laura 1234 "Laura Gomez" coordinador centro
-registrar_zona centro "Zona Centro" alto 100
-registrar_zona zona_sur "Zona Sur" alto -100
-registrar_zona zona_x "Zona X" altisimo 10
-registrar_necesidad N001 agua 30 critica centro "Punto de atencion sector 3"
-registrar_necesidad N002 agua -30 critica centro "cantidad negativa"
-registrar_necesidad N003 agua 30 critica zona_inexistente "zona falsa"
-registrar_necesidad N004 agua 30 urgentisima centro "prioridad falsa"
-registrar_recurso R001 "Agua potable" agua 50 litros centro_acopio_1
-registrar_recurso R002 "Arroz" alimentos -50 kg centro_acopio_1
-registrar_recurso R003 "Arroz" alimentos 50 kg bodega_inexistente
-asignar_recurso N001 agua 500
-asignar_recurso N001 agua -5
-asignar_recurso N001 agua 30
-asignar_recurso N999 agua 5
-transferir_recurso R001 centro_acopio_1 zona_norte 500
-transferir_recurso R001 lugar_falso zona_norte 5
-transferir_recurso R001 centro_acopio_1 destino_fantasma 5
-estado_necesidad N001 atendida
-estado_necesidad N001 volando
-estado_necesidad N001 en_atencion
-estado_necesidad N001 cancelada
-asignar_recurso N001 agua 5
+registrar_zona centro "Zona Centro" critico 300
+registrar_zona zona_norte "Zona Norte" alto 150
 registrar_albergue A01 "Albergue Norte" zona_norte 150
-registrar_albergue A02 "Albergue Sur" zona_norte -150
-registrar_albergue A02 "Albergue Sur" zona_norte 0
-registrar_albergue A02 "Albergue Sur" zona_inexistente 150
-reportar_persona P001 1094888111 "Andres" 28 zona_norte localizada
-reportar_persona P002 1094888111 "Otro Andres" 30 zona_norte localizada
-reportar_persona P003 555 "Beto" -28 zona_norte localizada
-reportar_persona P004 666 "Carlos" 28 zona_norte desaparecida
-reportar_persona P005 777 "Diana" 28 zona_inexistente localizada
-estado_persona 1094888111 reunificada
-estado_persona 1094888111 xyz
+registrar_necesidad N001 agua 30 critica centro "Punto de atencion sector 3"
+registrar_recurso R001 "Agua potable" agua 50 litros centro_acopio_1
 ingreso_albergue A01 1094888111
-ingreso_albergue A01 999-no-registrada
-ingreso_albergue A-NO 1094888111
-salida_albergue A01 999
-registrar_albergue A04 "Albergue Pequeno" zona_norte 1
-reportar_persona P010 2222 "Elena" 30 zona_norte localizada
-reportar_persona P011 3333 "Felipe" 31 zona_norte localizada
-ingreso_albergue A04 2222
-ingreso_albergue A04 3333
-ingreso_albergue A04 2222
+asignar_recurso N001 R001 30
+
+
+
+Terminal 3: Cliente 2 — Andrés (Segundo Coordinador para concurrencia)Abre una tercera ventana de PowerShell y conéctala como cliente2:
+elixir --sname cliente2@localhost --cookie emergencia nodo_cliente.exs
+Dentro del menú del cliente, pega:
+conectar andres 5678 "Andres Lopez" coordinador centro
+registrar_necesidad N002 agua 25 critica centro "Punto de atencion sector 4"
+asignar_recurso N002 R001 25
+
+Ejecuta asignar_recurso N001 R001 30 en la Terminal 2 y enseguida asignar_recurso N002 R001 25 en la Terminal 3 (una aprueba los 30 litros y la otra rechaza los 25 porque solo quedan 20 de 50).  
+
+ Terminal 4: Cliente 3 — Carlos (Ciudadano) y Sofía (Voluntaria)Abre una cuarta ventana de PowerShell y conéctala como cliente3:
+ elixir --sname cliente3@localhost --cookie emergencia nodo_cliente.exs
+Dentro del menú del cliente, pega:
+conectar carlos 1111 "Carlos Ruiz" ciudadano zona_norte
+reportar_persona P001 1094888111 "Andres" 28 zona_norte localizada
+
+hacer lo de ingresar albergue en la terminal 2 
+
 enviar_mensaje M001 1094888111 "Hola Andres, estamos pendientes"
-entregar_mensaje M001
-entregar_mensaje M001
+conectar sofia 2222 "Sofia Diaz" voluntario zona_norte
 reportar_mascota MP01 perdida perro "Luna" "Collar rojo" negra mediana zona_norte 3001112233
-reportar_mascota MP02 robada perro "Luna" "Collar rojo" negra mediana zona_norte 3001112233
-reportar_mascota MP03 perdida perro "Luna" "Collar rojo" negra mediana zona_inexistente 3001112233
-reportar_mascota MP04 perdida perro "Rex" "Collar azul" negra mediana zona_norte 3007778888
-reportar_mascota MG01 encontrada gato "desconocido" "Sin collar" gris pequena zona_norte 3109990000
-confirmar_mascota MP01 ME01
-confirmar_mascota MP01 ME01
-reportar_mascota MP05 perdida perro "Toby" "Collar verde" negra mediana zona_norte 3001230000
-reportar_mascota MP06 perdida perro "Max" "Collar rojo" negra mediana zona_norte 3001230001
-reportar_mascota MP07 perdida perro "Zeus" "Collar gris" negra mediana zona_norte 3001230002
-confirmar_mascota MP04 MG01
-confirmar_mascota MP05 MP06
-confirmar_mascota MP07 MP07
-conectar ciud 1 "Ciud" ciudadano centro
-registrar_zona zona_ciud "Zona" bajo 1
-desconectar
-registrar_zona zona_sinsesion "Zona" bajo 1
-conectar laura 1234
-reportar_persona P050 5050 "Ana@Maria" 30 zona_norte localizada
+reportar_mascota ME01 encontrada perro "desconocido" "Sin collar" negra mediana zona_norte 3104445566
+buscar_coincidencias
+
+
+Cierre y Resumen Final (Vuelve a la Terminal 2 — Laura)Con todas las terminales conectadas al mismo tiempo, en la Terminal 2 (donde sigue conectada Laura como coordinadora) ejecuta:   Plaintext
+resumen
 salir
+(Y escribe salir en las Terminales 3 y 4 para desconectar a los demás usuarios).
+
+
+
+
