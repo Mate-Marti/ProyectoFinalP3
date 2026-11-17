@@ -29,6 +29,10 @@ defmodule GestorZonas do
     GenServer.call(destino(nodo), :listar_zonas)
   end
 
+  def existe_zona?(cod_zona) do
+    GenServer.call(__MODULE__, {:existe_zona, cod_zona})
+  end
+
   def asociar_elemento(cod_zona, tipo, id_elemento) do
     GenServer.call(__MODULE__, {:asociar_elemento, cod_zona, tipo, id_elemento})
   end
@@ -69,7 +73,7 @@ defmodule GestorZonas do
 
   @impl true
   def handle_call({:agregar_punto_atencion, username, cod_zona, cod_sector, punto}, _from, zonas) do
-    with {:ok, _usuario} <- 
+    with {:ok, _usuario} <-
     GestorUsuarios.validar_y_registrar(username, :registrar_zona, "agregar_punto #{punto}"),
          {:ok, zona} <- buscar_por_codigo(zonas, cod_zona),
          {:ok, zona_act} <- Zona.agregar_punto_atencion(zona, cod_sector, punto) do
